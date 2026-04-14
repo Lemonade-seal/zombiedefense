@@ -65,9 +65,14 @@
   .preview{width:100%;height:38px;border-radius:10px;background:linear-gradient(180deg,#101720,#172131);border:1px solid rgba(255,255,255,.06)}
   .name{font-size:10px;line-height:1.1;font-weight:800;height:24px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   .cost{font-size:11px;color:#ffe08f;font-weight:900}
-  .meta{font-size:10px;color:#9ec2ff;height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta{display:block;font-size:10px;line-height:1;color:#9ec2ff;height:12px;white-space:nowrap;overflow:hidden;text-overflow:clip;transform-origin:left center}
   .actionbar{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;min-height:42px}
-  .actionInfo{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:7px 10px;font-size:11px;color:var(--muted);height:42px;display:flex;align-items:center;overflow:hidden;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .actionInfo{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:4px 7px;font-size:10px;color:var(--muted);height:42px;display:block;overflow:hidden;line-height:1.06;text-align:left;word-break:keep-all;overflow-wrap:anywhere;white-space:normal}
+  .card.locked{filter:saturate(.78) brightness(.88)}
+  .card.capped{box-shadow:inset 0 0 0 1px rgba(255,206,87,.28)}
+  .card.installBlocked{border-color:#6f7681;box-shadow:inset 0 0 0 1px rgba(171,178,189,.38),0 6px 14px rgba(0,0,0,.15)}
+  .card.installBlocked.selected{border-color:#6f7681;box-shadow:inset 0 0 0 1px rgba(171,178,189,.42),0 6px 14px rgba(0,0,0,.15)}
+  .card .meta.lockInfo{color:#ffd893}
   .footerHint{display:none}
   @media (max-width:640px){
     .topbar{grid-template-columns:1fr}
@@ -108,7 +113,7 @@
     .preview{height:42px}
     .name{font-size:11px;height:26px}
     .cost{font-size:12px}
-    .actionInfo{height:44px;font-size:12px}
+    .actionInfo{height:44px;font-size:11px;line-height:1.07;padding:4px 8px}
   }
   @media (min-width:1100px){
     body{padding:16px}
@@ -164,7 +169,7 @@
     </div>
     <div class="sliderWrap" id="sliderWrap"><div class="track" id="deckTrack"></div></div>
     <div class="actionbar">
-      <div class="actionInfo" id="actionInfo">전장에 설치물을 터치하면 레벨, 업그레이드 비용, 판매 금액이 표시됩니다.</div>
+      <div class="actionInfo" id="actionInfo">설치물 또는 패시브를 고르면 설명과 해금/제한 정보가 여기에 표시됩니다.</div>
       <button id="upgradeBtn" class="small">업그레이드</button>
       <button id="sellBtn" class="small warn">판매</button>
     </div>
@@ -203,56 +208,58 @@
     {key:'rifle', name:'RIFLE NEST', family:'projectile', cost:45, damage:10, fire:0.58, range:190, bulletSpeed:340, color:'#78d9ff', model:'rifle'},
     {key:'smg', name:'SMG POD', family:'projectile', cost:52, damage:7, fire:0.22, range:160, bulletSpeed:380, color:'#80e3ff', model:'smg'},
     {key:'burst', name:'BURST HUB', family:'projectile', cost:64, damage:12, fire:0.34, range:185, bulletSpeed:360, color:'#8ec6ff', model:'burst'},
-    {key:'sniper', name:'SNIPER POST', family:'projectile', cost:135, damage:34, fire:1.35, range:290, bulletSpeed:460, color:'#d9f2ff', model:'sniper'},
-    {key:'cannon', name:'CANNON', family:'splash', cost:110, damage:26, fire:1.32, range:220, bulletSpeed:240, splash:58, color:'#ffbd6b', model:'cannon'},
-    {key:'mortar', name:'MORTAR', family:'splash', cost:145, damage:38, fire:1.85, range:280, bulletSpeed:220, splash:72, color:'#f6c55f', model:'mortar'},
-    {key:'rocket', name:'ROCKET', family:'splash', cost:175, damage:42, fire:1.55, range:250, bulletSpeed:260, splash:68, color:'#ff9d7a', model:'rocket'},
-    {key:'shotgun', name:'SHOTGUN', family:'projectile', cost:62, damage:16, fire:0.7, range:118, bulletSpeed:300, spread:3, color:'#ffd090', model:'shotgun'},
-    {key:'laser', name:'LASER', family:'beam', cost:120, damage:20, fire:0.42, range:220, color:'#ff6e86', model:'laser'},
-    {key:'rail', name:'RAIL', family:'beam', cost:190, damage:44, fire:1.05, range:300, color:'#a8e0ff', model:'rail'},
-    {key:'shock', name:'SHOCK', family:'chain', cost:95, damage:10, fire:0.9, range:175, chain:2, color:'#b79cff', model:'shock'},
-    {key:'tesla', name:'TESLA', family:'chain', cost:165, damage:16, fire:0.85, range:195, chain:4, color:'#d0a4ff', model:'tesla'},
-    {key:'flame', name:'FLAME', family:'aura', cost:75, damage:10, fire:0.22, range:74, color:'#ff8a5f', model:'flame'},
-    {key:'acid', name:'ACID', family:'projectile', cost:88, damage:12, fire:0.7, range:180, bulletSpeed:300, poison:4, color:'#84ef7a', model:'acid'},
-    {key:'frost', name:'FROST', family:'projectile', cost:82, damage:9, fire:0.55, range:185, bulletSpeed:300, slow:0.62, slowTime:1.8, color:'#98d9ff', model:'frost'},
-    {key:'chain', name:'CHAIN ARC', family:'chain', cost:138, damage:13, fire:0.66, range:185, chain:3, color:'#a9bbff', model:'chain'},
+    {key:'sniper', name:'SNIPER POST', family:'projectile', cost:170, damage:34, fire:1.35, range:290, bulletSpeed:460, color:'#d9f2ff', model:'sniper'},
+    {key:'cannon', name:'CANNON', family:'splash', cost:148, damage:26, fire:1.32, range:220, bulletSpeed:240, splash:58, color:'#ffbd6b', model:'cannon'},
+    {key:'mortar', name:'MORTAR', family:'splash', cost:205, damage:38, fire:1.85, range:280, bulletSpeed:220, splash:72, color:'#f6c55f', model:'mortar'},
+    {key:'rocket', name:'ROCKET', family:'splash', cost:248, damage:42, fire:1.55, range:250, bulletSpeed:260, splash:68, color:'#ff9d7a', model:'rocket'},
+    {key:'shotgun', name:'SHOTGUN', family:'projectile', cost:68, damage:16, fire:0.7, range:118, bulletSpeed:300, spread:3, color:'#ffd090', model:'shotgun'},
+    {key:'laser', name:'LASER', family:'beam', cost:168, damage:20, fire:0.42, range:220, color:'#ff6e86', model:'laser'},
+    {key:'rail', name:'RAIL', family:'beam', cost:320, damage:44, fire:1.05, range:300, color:'#a8e0ff', model:'rail'},
+    {key:'shock', name:'SHOCK', family:'chain', cost:118, damage:10, fire:0.9, range:175, chain:2, color:'#b79cff', model:'shock'},
+    {key:'tesla', name:'TESLA', family:'chain', cost:238, damage:16, fire:0.85, range:195, chain:4, color:'#d0a4ff', model:'tesla'},
+    {key:'flame', name:'FLAME', family:'aura', cost:88, damage:10, fire:0.22, range:74, color:'#ff8a5f', model:'flame'},
+    {key:'acid', name:'ACID', family:'projectile', cost:102, damage:12, fire:0.7, range:180, bulletSpeed:300, poison:4, color:'#84ef7a', model:'acid'},
+    {key:'frost', name:'FROST', family:'projectile', cost:98, damage:9, fire:0.55, range:185, bulletSpeed:300, slow:0.62, slowTime:1.8, color:'#98d9ff', model:'frost'},
+    {key:'chain', name:'CHAIN ARC', family:'chain', cost:210, damage:13, fire:0.66, range:185, chain:3, color:'#a9bbff', model:'chain'},
     {key:'saw', name:'SAW PAD', family:'trap', cost:36, damage:15, fire:0.45, range:34, color:'#ffc06d', model:'saw'},
     {key:'spike', name:'SPIKE BED', family:'trap', cost:30, damage:12, fire:0.35, range:28, color:'#c8cad2', model:'spike'},
-    {key:'mine', name:'MINE', family:'trap_burst', cost:52, damage:54, fire:1.8, range:42, splash:62, color:'#ffb37f', model:'mine'},
-    {key:'freezeTrap', name:'FREEZE TRAP', family:'trap_slow', cost:48, damage:8, fire:1.0, range:40, splash:64, slow:0.45, slowTime:2.6, color:'#9bd9ff', model:'freezeTrap'},
+    {key:'mine', name:'MINE', family:'trap_burst', cost:72, damage:54, fire:1.8, range:42, splash:62, color:'#ffb37f', model:'mine'},
+    {key:'freezeTrap', name:'FREEZE TRAP', family:'trap_slow', cost:68, damage:8, fire:1.0, range:40, splash:64, slow:0.45, slowTime:2.6, color:'#9bd9ff', model:'freezeTrap'},
     {key:'wall', name:'WALL', family:'wall', cost:34, hp:120, color:'#9aa7bd', model:'wall'},
-    {key:'bunker', name:'BUNKER', family:'bunker', cost:128, hp:220, damage:12, fire:0.7, range:145, bulletSpeed:320, color:'#d9dbde', model:'bunker'},
-    {key:'radar', name:'RADAR', family:'support_range', cost:92, color:'#8dc5ff', aura:120, buffRange:52, model:'radar'},
-    {key:'magnet', name:'MAGNET', family:'support_damage', cost:98, color:'#ff95cd', aura:120, buffDamage:1.22, model:'magnet'},
-    {key:'fan', name:'FAN', family:'support_slow', cost:86, color:'#88d2ff', aura:108, enemySlow:0.82, model:'fan'},
-    {key:'medic', name:'MEDIC', family:'heal', cost:94, color:'#a8f6be', aura:108, heal:8, fire:0.9, model:'medic'},
-    {key:'bank', name:'BANK', family:'gold', cost:118, color:'#ffd76a', income:12, fire:4.2, model:'bank'},
-    {key:'solar', name:'SOLAR', family:'gold', cost:72, color:'#ffe88d', income:8, fire:3.0, model:'solar'},
-    {key:'poisonBarrel', name:'POISON BARREL', family:'barrel', cost:58, damage:14, fire:0.7, range:54, poison:6, color:'#8ef38a', model:'poisonBarrel'},
-    {key:'drone', name:'DRONE', family:'projectile', cost:132, damage:14, fire:0.42, range:215, bulletSpeed:360, color:'#b7f1ff', model:'drone'}
+    {key:'bunker', name:'BUNKER', family:'bunker', cost:176, hp:220, damage:12, fire:0.7, range:145, bulletSpeed:320, color:'#d9dbde', model:'bunker'},
+    {key:'radar', name:'RADAR', family:'support_range', cost:116, color:'#8dc5ff', aura:120, buffRange:52, model:'radar'},
+    {key:'magnet', name:'MAGNET', family:'support_damage', cost:128, color:'#ff95cd', aura:120, buffDamage:1.22, model:'magnet'},
+    {key:'fan', name:'FAN', family:'support_slow', cost:108, color:'#88d2ff', aura:108, enemySlow:0.82, model:'fan'},
+    {key:'medic', name:'MEDIC', family:'heal', cost:124, color:'#a8f6be', aura:108, heal:8, fire:0.9, model:'medic'},
+    {key:'bank', name:'BANK', family:'gold', cost:160, color:'#ffd76a', income:12, fire:4.2, model:'bank'},
+    {key:'solar', name:'SOLAR', family:'gold', cost:80, color:'#ffe88d', income:8, fire:3.0, model:'solar'},
+    {key:'poisonBarrel', name:'POISON BARREL', family:'barrel', cost:70, damage:14, fire:0.7, range:54, poison:6, color:'#8ef38a', model:'poisonBarrel'},
+    {key:'drone', name:'DRONE', family:'projectile', cost:228, damage:14, fire:0.42, range:215, bulletSpeed:360, color:'#b7f1ff', model:'drone'},
+    {key:'gauss', name:'GAUSS TURRET', family:'projectile', cost:286, damage:31, fire:0.50, range:255, bulletSpeed:520, color:'#bfe9ff', model:'gauss'},
+    {key:'reactor', name:'REACTOR CORE', family:'gold', cost:268, color:'#ffe89c', income:21, fire:3.35, model:'reactor'}
   ];
 
 const PASSIVES = [
-  {key:'core_cell', name:'CORE CELL', cost:110, icon:'heart', color:'#ff8aa6', desc:'최대 ENERGY +25'},
-  {key:'fortress_cell', name:'FORTRESS CELL', cost:210, icon:'battery', color:'#ff6b7f', desc:'최대 ENERGY +40'},
-  {key:'plated_hull', name:'PLATED HULL', cost:150, icon:'shield', color:'#8ab7ff', desc:'기지 피해 -1.2'},
-  {key:'guardian_shell', name:'GUARDIAN SHELL', cost:235, icon:'wall', color:'#7f9dff', desc:'기지 피해 -2.2'},
-  {key:'nano_repair', name:'NANO REPAIR', cost:145, icon:'plus', color:'#91ffb8', desc:'초당 ENERGY +0.35'},
-  {key:'repair_matrix', name:'REPAIR MATRIX', cost:245, icon:'cross', color:'#63e79d', desc:'초당 ENERGY +0.75'},
-  {key:'kill_patch', name:'KILL PATCH', cost:150, icon:'spark', color:'#ffd27a', desc:'8킬마다 ENERGY +2'},
-  {key:'vamp_core', name:'VAMP CORE', cost:255, icon:'fang', color:'#ffb88f', desc:'15킬마다 ENERGY +5'},
-  {key:'revenge_core', name:'REVENGE CORE', cost:270, icon:'burst', color:'#ff9fb3', desc:'ENERGY 12 잃을 때마다 전 기물 공격력 증가'},
-  {key:'redline_drive', name:'REDLINE DRIVE', cost:240, icon:'bolt', color:'#ffb157', desc:'ENERGY 40% 이하일 때 화력/연사 상승'},
-  {key:'overflow_drive', name:'OVERFLOW DRIVE', cost:230, icon:'sun', color:'#fff2a1', desc:'ENERGY 90% 이상일 때 전 기물 화력 증가'},
-  {key:'barrier_valve', name:'BARRIER VALVE', cost:225, icon:'gate', color:'#8fe2ff', desc:'ENERGY 높을 때 기지 피해 25% 감소'},
-  {key:'emergency_bulkhead', name:'EMERGENCY BULKHEAD', cost:320, icon:'lock', color:'#ffe2a8', desc:'치명타 1회 방어 후 ENERGY 15로 생존'},
-  {key:'surge_cycle', name:'SURGE CYCLE', cost:170, icon:'wave', color:'#a8f0ff', desc:'웨이브 시작마다 ENERGY +5'},
-  {key:'shock_fence', name:'SHOCK FENCE', cost:240, icon:'zap', color:'#d0b0ff', desc:'기지 피격 시 하단 적들에게 전격 반격'},
-  {key:'frost_fence', name:'FROST FENCE', cost:240, icon:'snow', color:'#c5f2ff', desc:'기지 피격 시 하단 적들에게 둔화 부여'},
-  {key:'salvage_relay', name:'SALVAGE RELAY', cost:125, icon:'coin', color:'#fdd873', desc:'설치물 판매 시 ENERGY +2'},
-  {key:'titan_reserve', name:'TITAN RESERVE', cost:280, icon:'crown', color:'#ffe98b', desc:'보스 처치 시 ENERGY 회복 + 화력 버프'},
-  {key:'last_stand_amp', name:'LAST STAND AMP', cost:255, icon:'sword', color:'#ff9c7b', desc:'잃은 ENERGY 비례 전 기물 화력 증가'},
-  {key:'blood_furnace', name:'BLOOD FURNACE', cost:290, icon:'flame', color:'#ff7468', desc:'설치 시 ENERGY 3 소모, 전 기물 공격력 증가'}
+  {key:'core_cell', name:'CORE CELL', cost:130, icon:'heart', color:'#ff8aa6', desc:'최대 ENERGY +25'},
+  {key:'fortress_cell', name:'FORTRESS CELL', cost:320, icon:'battery', color:'#ff6b7f', desc:'최대 ENERGY +40'},
+  {key:'plated_hull', name:'PLATED HULL', cost:175, icon:'shield', color:'#8ab7ff', desc:'기지 피해 -1.2'},
+  {key:'guardian_shell', name:'GUARDIAN SHELL', cost:330, icon:'wall', color:'#7f9dff', desc:'기지 피해 -2.2'},
+  {key:'nano_repair', name:'NANO REPAIR', cost:170, icon:'plus', color:'#91ffb8', desc:'초당 ENERGY +0.35'},
+  {key:'repair_matrix', name:'REPAIR MATRIX', cost:360, icon:'cross', color:'#63e79d', desc:'초당 ENERGY +0.75'},
+  {key:'kill_patch', name:'KILL PATCH', cost:175, icon:'spark', color:'#ffd27a', desc:'8킬마다 ENERGY +2'},
+  {key:'vamp_core', name:'VAMP CORE', cost:360, icon:'fang', color:'#ffb88f', desc:'15킬마다 ENERGY +5'},
+  {key:'revenge_core', name:'REVENGE CORE', cost:390, icon:'burst', color:'#ff9fb3', desc:'ENERGY 12 잃을 때마다 전 기물 공격력 증가'},
+  {key:'redline_drive', name:'REDLINE DRIVE', cost:340, icon:'bolt', color:'#ffb157', desc:'ENERGY 40% 이하일 때 화력/연사 상승'},
+  {key:'overflow_drive', name:'OVERFLOW DRIVE', cost:330, icon:'sun', color:'#fff2a1', desc:'ENERGY 90% 이상일 때 전 기물 화력 증가'},
+  {key:'barrier_valve', name:'BARRIER VALVE', cost:310, icon:'gate', color:'#8fe2ff', desc:'ENERGY 높을 때 기지 피해 25% 감소'},
+  {key:'emergency_bulkhead', name:'EMERGENCY BULKHEAD', cost:520, icon:'lock', color:'#ffe2a8', desc:'치명타 1회 방어 후 ENERGY 15로 생존'},
+  {key:'surge_cycle', name:'SURGE CYCLE', cost:205, icon:'wave', color:'#a8f0ff', desc:'웨이브 시작마다 ENERGY +5'},
+  {key:'shock_fence', name:'SHOCK FENCE', cost:360, icon:'zap', color:'#d0b0ff', desc:'기지 피격 시 하단 적들에게 전격 반격'},
+  {key:'frost_fence', name:'FROST FENCE', cost:350, icon:'snow', color:'#c5f2ff', desc:'기지 피격 시 하단 적들에게 둔화 부여'},
+  {key:'salvage_relay', name:'SALVAGE RELAY', cost:150, icon:'coin', color:'#fdd873', desc:'설치물 판매 시 ENERGY +2'},
+  {key:'titan_reserve', name:'TITAN RESERVE', cost:430, icon:'crown', color:'#ffe98b', desc:'보스 처치 시 ENERGY 회복 + 화력 버프'},
+  {key:'last_stand_amp', name:'LAST STAND AMP', cost:395, icon:'sword', color:'#ff9c7b', desc:'잃은 ENERGY 비례 전 기물 화력 증가'},
+  {key:'blood_furnace', name:'BLOOD FURNACE', cost:420, icon:'flame', color:'#ff7468', desc:'설치 시 ENERGY 3 소모, 전 기물 공격력 증가'}
 ];
 
 
@@ -340,6 +347,7 @@ const state = {
   nextId:1, turrets:[], enemies:[], bullets:[], effects:[], pools:[],
   spawnQueue:[], spawnTimer:0, betweenWaves:1.0, last:0, bannerUntil:0,
   passives:{}, emergencyUsed:false, energyLossBank:0, damageBuffs:[], animClock:0,
+  supportCache:new Map(), supportDirty:true,
   field:{left:0, top:0, width:0, height:0, cols:5, rows:9, baseY:0, tileW:0, tileH:0},
 };
 
@@ -350,7 +358,7 @@ const passiveMap = Object.fromEntries(PASSIVES.map(i => [i.key, i]));
 
 function getInstall(key){ return installMap[key] || INSTALLS[0]; }
 function getPassive(key){ return passiveMap[key] || PASSIVES[0]; }
-function currentList(){ return state.mode === 'install' ? INSTALLS : PASSIVES; }
+function currentList(){ return state.mode === 'install' ? sortDeckItems(INSTALLS, 'install') : sortDeckItems(PASSIVES, 'passive'); }
 function pageCount(){ return Math.max(1, Math.ceil(currentList().length / PAGE_SIZE)); }
 function passiveRank(key){ return state.passives[key] || 0; }
 function hasPassive(key){ return passiveRank(key) > 0; }
@@ -417,6 +425,46 @@ function updateSelectedName(){
   if(state.mode === 'install') selectedName.textContent = '선택: ' + getInstall(state.selectedInstall).name;
   else selectedName.textContent = '선택: ' + getPassive(state.selectedPassive).name;
 }
+function selectedKey(){
+  return state.mode === 'install' ? state.selectedInstall : state.selectedPassive;
+}
+function updateDeckSelection(){
+  const key = selectedKey();
+  deckTrack.querySelectorAll('.card').forEach(card => {
+    card.classList.toggle('selected', card.dataset.key === key);
+  });
+  updateSelectedName();
+  refreshActionBar();
+}
+
+function fitDeckMetaText(scope=deckTrack){
+  const nodes = scope ? scope.querySelectorAll('.card .meta') : [];
+  const desktop = window.matchMedia('(min-width:1100px)').matches;
+  const tablet = window.matchMedia('(min-width:768px)').matches;
+  const max = desktop ? 11 : (tablet ? 10.2 : 9.4);
+  const min = 6.1;
+
+  nodes.forEach(el => {
+    el.style.fontSize = max + 'px';
+    el.style.letterSpacing = '0';
+    el.style.transform = 'none';
+
+    let low = min;
+    let high = max;
+    for(let i=0; i<10; i++){
+      const mid = (low + high) / 2;
+      el.style.fontSize = mid + 'px';
+      if(el.scrollWidth <= el.clientWidth + 0.5) low = mid;
+      else high = mid;
+    }
+    el.style.fontSize = low.toFixed(2) + 'px';
+
+    if(el.scrollWidth > el.clientWidth + 0.5){
+      const sx = Math.max(0.82, (el.clientWidth - 1) / Math.max(1, el.scrollWidth));
+      el.style.transform = `scaleX(${sx.toFixed(3)})`;
+    }
+  });
+}
 
 function isOffensiveInstall(item){
   return !['gold','heal','support_range','support_damage','support_slow','wall'].includes(item.family);
@@ -440,7 +488,7 @@ function upgradeDeltaText(item, nextLevel){
     if(['wall','bunker'].includes(item.family)) parts.push('내구 보강');
   }
   if(nextLevel === 3){
-    if(['rifle','smg','burst','shotgun','laser','rail','cannon','mortar','rocket','bunker','acid','frost','drone'].includes(item.model)) parts.push('탄 수 증가');
+    if(['rifle','smg','burst','shotgun','laser','rail','cannon','mortar','rocket','bunker','acid','frost','drone','gauss'].includes(item.model)) parts.push('탄 수 증가');
     if(['shock','tesla','chain'].includes(item.model)) parts.push('추가 타격');
     if(['cannon','mortar','rocket','mine'].includes(item.model)) parts.push('폭발 강화');
     if(['wall','bunker'].includes(item.family)) parts.push('요새화');
@@ -455,9 +503,16 @@ function upgradeDeltaText(item, nextLevel){
   function getUpgradeCost(t){
     if(!t || t.level >= 3) return 0;
     const cost = t.base.cost || 0;
-    const premium = cost >= 170 ? 0.48 : cost >= 140 ? 0.36 : cost >= 110 ? 0.26 : cost >= 85 ? 0.16 : cost >= 60 ? 0.08 : 0;
-    if(t.level === 1) return Math.round(cost * (1.08 + premium));
-    if(t.level === 2) return Math.round(cost * (1.92 + premium * 1.25));
+    const premium = cost >= 300 ? 0.62
+      : cost >= 240 ? 0.52
+      : cost >= 200 ? 0.42
+      : cost >= 160 ? 0.32
+      : cost >= 120 ? 0.22
+      : cost >= 90 ? 0.14
+      : cost >= 60 ? 0.08
+      : 0;
+    if(t.level === 1) return Math.round(cost * (1.10 + premium));
+    if(t.level === 2) return Math.round(cost * (1.95 + premium * 1.35));
     return 0;
   }
   function hideBanner(){ banner.style.opacity = '0'; setTimeout(() => { if((performance.now()/1000) >= state.bannerUntil) banner.style.display = 'none'; }, 240); }
@@ -482,6 +537,187 @@ function upgradeDeltaText(item, nextLevel){
     const map = {projectile:'직사', splash:'폭발', beam:'빔', chain:'연쇄', aura:'근접', trap:'함정', trap_burst:'폭발함정', trap_slow:'빙결함정', wall:'방벽', bunker:'방벽+사격', support_range:'사거리보조', support_damage:'화력보조', support_slow:'둔화보조', heal:'수리', gold:'수익', barrel:'독장판'};
     return map[family] || family;
   }
+  function fmtStat(v){
+    if(v == null) return '';
+    return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
+  }
+  const INSTALL_REQ = {
+    rifle:1, smg:1, burst:1, shotgun:1, saw:1, spike:1, wall:1, solar:1, poisonBarrel:1,
+    sniper:8, cannon:10, flame:6, acid:8, frost:10, freezeTrap:10, mine:12,
+    radar:12, fan:14, medic:16, bank:18, bunker:20, magnet:22, laser:20, shock:24,
+    mortar:28, rocket:32, tesla:38, chain:40, rail:45, drone:50, reactor:54, gauss:58
+  };
+  const INSTALL_CAP = {
+    rifle:3, smg:3, burst:3, sniper:2, cannon:2, mortar:2, rocket:2, shotgun:2,
+    laser:2, rail:1, shock:2, tesla:1, flame:2, acid:2, frost:2, chain:1,
+    saw:3, spike:3, mine:2, freezeTrap:2, wall:6, bunker:2, radar:2, magnet:2, fan:2,
+    medic:2, bank:2, solar:3, poisonBarrel:2, drone:2, reactor:1, gauss:1
+  };
+  const PASSIVE_REQ = {
+    core_cell:1, plated_hull:1, nano_repair:1, kill_patch:1, surge_cycle:1, salvage_relay:1,
+    fortress_cell:16, guardian_shell:18, repair_matrix:20, barrier_valve:24,
+    redline_drive:28, overflow_drive:30, frost_fence:34, shock_fence:36,
+    revenge_core:42, last_stand_amp:46, blood_furnace:52, titan_reserve:58,
+    emergency_bulkhead:64, vamp_core:26
+  };
+  function currentProgressWave(){
+    return Math.max(1, state.wave || 1);
+  }
+  function installReqWave(key){ return INSTALL_REQ[key] || 1; }
+  function installMaxCount(key){ return INSTALL_CAP[key] || 2; }
+  function passiveReqWave(key){ return PASSIVE_REQ[key] || 1; }
+  function installTier(item){
+    const w = installReqWave(item.key);
+    if(w <= 8) return 1;
+    if(w <= 18) return 2;
+    if(w <= 32) return 3;
+    if(w <= 45) return 4;
+    return 5;
+  }
+  function passiveTier(item){
+    const w = passiveReqWave(item.key);
+    if(w <= 10) return 1;
+    if(w <= 25) return 2;
+    if(w <= 40) return 3;
+    if(w <= 55) return 4;
+    return 5;
+  }
+  function installRoleGroup(item){
+    const family = item.family;
+    if(family === 'projectile' || family === 'bunker') return 1; // 직사
+    if(['splash','beam','chain','aura','barrel'].includes(family)) return 2; // 특수기
+    if(['trap','trap_burst','trap_slow'].includes(family)) return 3; // 함정
+    return 4; // 방벽/지원/회복/경제/기타
+  }
+  function passiveRoleGroup(item){
+    if(['redline_drive','overflow_drive','revenge_core','last_stand_amp','blood_furnace','titan_reserve'].includes(item.key)) return 1; // 전투
+    if(['core_cell','fortress_cell','plated_hull','guardian_shell','barrier_valve','emergency_bulkhead','shock_fence','frost_fence'].includes(item.key)) return 2; // 생존
+    if(['nano_repair','repair_matrix','kill_patch','vamp_core','surge_cycle','salvage_relay'].includes(item.key)) return 3; // 회복/경제
+    return 4; // 기타
+  }
+  function sortDeckItems(list, mode){
+    return [...list].sort((a, b) => {
+      const ta = mode === 'install' ? installTier(a) : passiveTier(a);
+      const tb = mode === 'install' ? installTier(b) : passiveTier(b);
+      if(ta !== tb) return ta - tb;
+
+      const ga = mode === 'install' ? installRoleGroup(a) : passiveRoleGroup(a);
+      const gb = mode === 'install' ? installRoleGroup(b) : passiveRoleGroup(b);
+      if(ga !== gb) return ga - gb;
+
+      const wa = mode === 'install' ? installReqWave(a.key) : passiveReqWave(a.key);
+      const wb = mode === 'install' ? installReqWave(b.key) : passiveReqWave(b.key);
+      if(wa !== wb) return wa - wb;
+
+      const ca = a.cost || 0;
+      const cb = b.cost || 0;
+      if(ca !== cb) return ca - cb;
+
+      return a.name.localeCompare(b.name);
+    });
+  }
+  function installSlotLimit(wave=currentProgressWave()){
+    if(wave >= 90) return 18;
+    if(wave >= 75) return 17;
+    if(wave >= 60) return 16;
+    if(wave >= 45) return 15;
+    if(wave >= 35) return 14;
+    if(wave >= 25) return 13;
+    if(wave >= 15) return 12;
+    if(wave >= 8) return 11;
+    return 10;
+  }
+  function passiveSlotLimit(wave=currentProgressWave()){
+    if(wave >= 95) return 8;
+    if(wave >= 75) return 7;
+    if(wave >= 55) return 6;
+    if(wave >= 40) return 5;
+    if(wave >= 25) return 4;
+    if(wave >= 10) return 3;
+    return 2;
+  }
+  function activePassiveCount(){
+    return Object.values(state.passives).filter(v => v > 0).length;
+  }
+  function currentInstallCount(key){
+    return state.turrets.reduce((n, t) => n + (t.base.key === key ? 1 : 0), 0);
+  }
+  function installUnlocked(item){
+    return currentProgressWave() >= installReqWave(item.key);
+  }
+  function passiveUnlocked(item){
+    return currentProgressWave() >= passiveReqWave(item.key);
+  }
+  function installCapReached(item){
+    return currentInstallCount(item.key) >= installMaxCount(item.key);
+  }
+  function installRestrictionText(item){
+    const parts = [`해금 W${installReqWave(item.key)}`, `개별 ${currentInstallCount(item.key)}/${installMaxCount(item.key)}기`, `전체 ${state.turrets.length}/${installSlotLimit()}기`];
+    return parts.join(' · ');
+  }
+  function passiveRestrictionText(item){
+    return `해금 W${passiveReqWave(item.key)} · 슬롯 ${activePassiveCount()}/${passiveSlotLimit()}개`;
+  }
+  function fitActionInfo(){
+    const el = actionInfo;
+    if(!el) return;
+    let min = 6.5;
+    let max = window.matchMedia('(min-width:1100px)').matches ? 11.5 : (window.matchMedia('(min-width:768px)').matches ? 10.8 : 10);
+    el.style.fontSize = max + 'px';
+    el.style.lineHeight = '1.06';
+    while(max - min > 0.15){
+      const mid = (min + max) / 2;
+      el.style.fontSize = mid + 'px';
+      if(el.scrollHeight <= el.clientHeight + 0.5 && el.scrollWidth <= el.clientWidth + 0.5) min = mid;
+      else max = mid;
+    }
+    el.style.fontSize = min.toFixed(2) + 'px';
+  }
+  function setActionInfo(text){
+    actionInfo.textContent = text;
+    fitActionInfo();
+  }
+  function installDescription(item){
+    if(!item) return '설치물을 선택하세요.';
+    const roleMap = {
+      projectile:'전방 적 1체를 빠르게 사격하는 기본 화력 시설',
+      splash:'범위 폭발로 뭉친 적을 정리하는 중화기 시설',
+      beam:'직선 화력으로 단일 표적을 강하게 지지는 빔 시설',
+      chain:'전격이 주변 적에게 튀는 연쇄 화력 시설',
+      aura:'근접 범위 안 적을 지속적으로 태우는 화염 시설',
+      trap:'접촉한 적을 즉시 깎아내는 근접 함정',
+      trap_burst:'밟은 적 주변까지 폭발시키는 매설 함정',
+      trap_slow:'빙결 폭발로 이동을 묶는 제어 함정',
+      wall:'진입을 지연시키는 방어용 장벽',
+      bunker:'버티면서 사격까지 수행하는 전방 거점',
+      support_range:'주변 아군 시설의 사거리를 늘리는 지원 장치',
+      support_damage:'주변 아군 시설의 공격력을 높이는 증폭 장치',
+      support_slow:'주변 적의 이동을 늦추는 제어 장치',
+      heal:'주변 아군 시설을 주기적으로 수리하는 정비 장치',
+      gold:'주기적으로 골드를 생산하는 경제 시설',
+      barrel:'독성 장판으로 근접 적을 약화시키는 장치'
+    };
+
+    const stats = [];
+    if(item.damage != null) stats.push(`피해 ${fmtStat(item.damage)}`);
+    if(item.range != null) stats.push(`사거리 ${fmtStat(item.range)}`);
+    if(item.fire != null) stats.push(`주기 ${fmtStat(item.fire)}초`);
+    if(item.splash != null) stats.push(`폭발 ${fmtStat(item.splash)}`);
+    if(item.chain != null) stats.push(`연쇄 ${fmtStat(item.chain + 1)}체`);
+    if(item.spread != null) stats.push(`산탄 ${fmtStat(item.spread)}`);
+    if(item.poison != null) stats.push(`독 ${fmtStat(item.poison)}`);
+    if(item.slow != null) stats.push(`둔화 ${Math.round((1 - item.slow) * 100)}%`);
+    if(item.slowTime != null) stats.push(`지속 ${fmtStat(item.slowTime)}초`);
+    if(item.hp != null) stats.push(`내구 ${fmtStat(item.hp)}`);
+    if(item.aura != null) stats.push(`범위 ${fmtStat(item.aura)}`);
+    if(item.buffRange != null) stats.push(`사거리 +${fmtStat(item.buffRange)}`);
+    if(item.buffDamage != null) stats.push(`공격력 x${fmtStat(item.buffDamage)}`);
+    if(item.enemySlow != null) stats.push(`적속도 x${fmtStat(item.enemySlow)}`);
+    if(item.heal != null) stats.push(`회복 ${fmtStat(item.heal)}`);
+    if(item.income != null) stats.push(`수익 +${fmtStat(item.income)}`);
+
+    return `${item.name} · ${roleMap[item.family] || '전장용 설치물'} · 설치 $${item.cost} · 업글비 높음${stats.length ? ' · ' + stats.slice(0, 4).join(' · ') : ''}`;
+  }
 
 function updateHud(){
   clampEnergy();
@@ -490,6 +726,7 @@ function updateHud(){
   waveVal.textContent = String(state.wave);
   killVal.textContent = String(state.kills);
   bossVal.textContent = `${Math.min(10, Math.floor(state.wave/10))}/10`;
+  refreshActionBar();
 }
 
 
@@ -507,19 +744,26 @@ function buildDeck(){
     items.forEach(item => {
       const selected = state.mode === 'install' ? state.selectedInstall === item.key : state.selectedPassive === item.key;
       const owned = state.mode === 'passive' && passiveRank(item.key) > 0;
+      const unlocked = state.mode === 'install' ? installUnlocked(item) : passiveUnlocked(item);
+      const capped = state.mode === 'install' ? installCapReached(item) : false;
+      const costText = owned ? 'OWNED' : (!unlocked ? `W${state.mode === 'install' ? installReqWave(item.key) : passiveReqWave(item.key)}` : '$' + item.cost);
+      const metaText = state.mode === 'install'
+        ? `T${installTier(item)} · ${familyMeta(item.family)} · 최대${installMaxCount(item.key)}기`
+        : `T${passiveTier(item)} · 슬롯${activePassiveCount()}/${passiveSlotLimit()} · ${item.desc}`;
       const card = document.createElement('button');
-      card.className = 'card' + (selected ? ' selected' : '');
+      const installBlocked = state.mode === 'install' && (!unlocked || capped);
+      const metaLockedClass = state.mode === 'install' ? '' : ((!unlocked || capped) ? ' lockInfo' : '');
+      card.className = 'card' + (selected ? ' selected' : '') + (!unlocked ? ' locked' : '') + (capped ? ' capped' : '') + (installBlocked ? ' installBlocked' : '');
+      card.dataset.key = item.key;
       card.innerHTML = `<canvas class="preview" width="160" height="60"></canvas>
         <div class="name">${item.name}</div>
-        <div class="cost">${owned ? 'OWNED' : '$' + item.cost}</div>
-        <div class="meta">${state.mode === 'install' ? familyMeta(item.family) : item.desc}</div>`;
+        <div class="cost">${costText}</div>
+        <div class="meta${metaLockedClass}">${metaText}</div>`;
       card.addEventListener('click', () => {
         if(state.mode === 'install') state.selectedInstall = item.key;
         else state.selectedPassive = item.key;
         state.selectedTurretId = null;
-        updateSelectedName();
-        refreshActionBar();
-        buildDeck();
+        updateDeckSelection();
       });
       pageEl.appendChild(card);
       if(state.mode === 'install') drawPreview(card.querySelector('canvas'), item);
@@ -534,6 +778,7 @@ function buildDeck(){
   updateModeButtons();
   updateSelectedName();
   syncPageUI();
+  fitDeckMetaText();
 }
 
 function scrollToPage(page){
@@ -602,7 +847,7 @@ function drawPassivePreview(cv, item, owned){
 }
 
 function resize(){
-
+    const prevField = {...state.field};
     const rect = fieldWrap.getBoundingClientRect();
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     canvas.width = Math.floor(rect.width * dpr);
@@ -623,7 +868,24 @@ function resize(){
     state.field.baseY = state.field.top + state.field.height - 10;
     state.field.tileW = state.field.width / state.field.cols;
     state.field.tileH = state.field.height / state.field.rows;
+
+    for(const t of state.turrets){
+      const p = gridCenter(t.col, t.row);
+      t.x = p.x;
+      t.y = p.y;
+    }
+
+    const prevTop = prevField.top || 0;
+    const prevHeight = Math.max(1, prevField.height || 1);
+    for(const e of state.enemies){
+      e.x = state.field.left + state.field.tileW * (e.col + 0.5);
+      const progress = (e.y - prevTop) / prevHeight;
+      e.y = state.field.top + progress * state.field.height;
+    }
+
+    state.supportDirty = true;
     syncPageUI();
+    fitDeckMetaText();
   }
 
   function gridCenter(col,row){
@@ -640,8 +902,7 @@ function resize(){
 
   function pointerPos(ev){
     const r = canvas.getBoundingClientRect();
-    const t = ev.touches && ev.touches[0] ? ev.touches[0] : ev;
-    return {x:t.clientX - r.left, y:t.clientY - r.top};
+    return {x:ev.clientX - r.left, y:ev.clientY - r.top};
   }
 
   function selectTurret(id){ state.selectedTurretId = id; refreshActionBar(); }
@@ -652,10 +913,12 @@ function refreshActionBar(){
   if(state.mode === 'passive'){
     const p = getPassive(state.selectedPassive);
     const owned = passiveRank(p.key) > 0;
-    actionInfo.textContent = `${p.name} · ${p.desc} · ${owned ? '구매 완료' : '구매 비용 $' + p.cost}`;
+    const unlocked = passiveUnlocked(p);
+    const slotFull = !owned && activePassiveCount() >= passiveSlotLimit();
+    setActionInfo(`${p.name} · ${p.desc} · ${passiveRestrictionText(p)} · ${owned ? '구매 완료' : '구매 비용 $' + p.cost}`);
     upgradeBtn.textContent = '구매';
     sellBtn.textContent = owned ? '보유중' : '미보유';
-    upgradeBtn.disabled = owned || state.gold < p.cost;
+    upgradeBtn.disabled = owned || !unlocked || slotFull || state.gold < p.cost;
     sellBtn.disabled = true;
     return;
   }
@@ -663,13 +926,16 @@ function refreshActionBar(){
   sellBtn.textContent = '판매';
   const t = getSelectedTurret();
   if(!t){
-    actionInfo.textContent = '전장에 설치물을 터치하면 레벨, 업그레이드 비용, 판매 금액이 표시됩니다.';
-    upgradeBtn.disabled = true; sellBtn.disabled = true; return;
+    const item = getInstall(state.selectedInstall);
+    setActionInfo(`${installDescription(item)} · ${installRestrictionText(item)}`);
+    upgradeBtn.disabled = true;
+    sellBtn.disabled = true;
+    return;
   }
   const sell = Math.round(turretTotalSpent(t) * 0.65);
   const up = getUpgradeCost(t);
   const next = up ? upgradeDeltaText(t.base, t.level + 1) : '최대 레벨';
-  actionInfo.textContent = `${t.base.name} · Lv.${t.level} · HP ${Math.round(t.hp)}/${Math.round(t.maxHp)} · 다음: ${next} · 업그레이드 ${up ? '$'+up : '최대'} · 판매 $${sell}`;
+  setActionInfo(`${t.base.name} · Lv.${t.level} · HP ${Math.round(t.hp)}/${Math.round(t.maxHp)} · 다음: ${next} · 업그레이드 ${up ? '$'+up : '최대'} · 판매 $${sell}`);
   upgradeBtn.disabled = !up || state.gold < up;
   sellBtn.disabled = false;
 }
@@ -689,22 +955,28 @@ function place(col,row){
   const occupied = state.turrets.find(t => t.col===col && t.row===row);
   if(occupied){ selectTurret(occupied.id); return; }
   const item = getInstall(state.selectedInstall);
+  if(!installUnlocked(item)){ showBanner(`WAVE ${installReqWave(item.key)} 해금`, 1.1); return; }
+  if(state.turrets.length >= installSlotLimit()){ showBanner(`설치 슬롯 한도 ${installSlotLimit()}기`, 1.1); return; }
+  if(installCapReached(item)){ showBanner(`${item.name} 최대 ${installMaxCount(item.key)}기`, 1.1); return; }
   if(!canPlaceAt(col,row) || state.gold < item.cost) return;
   state.gold -= item.cost;
   state.turrets.push(makeTurret(item,col,row));
+  state.supportDirty = true;
   state.selectedTurretId = null;
   if(hasPassive('blood_furnace') && state.energy > 6){
     state.energy -= 3;
     state.energyLossBank += 3;
     addDamageBuff(1.26, 10, 'BLOOD FURNACE');
   }
-  updateHud(); refreshActionBar();
+  updateHud(); refreshActionBar(); buildDeck();
   state.effects.push({type:'place', x:gridCenter(col,row).x, y:gridCenter(col,row).y, life:0.2, color:item.color});
 }
 
 function buySelectedPassive(){
   const p = getPassive(state.selectedPassive);
   if(passiveRank(p.key) > 0 || state.gold < p.cost) return;
+  if(!passiveUnlocked(p)){ showBanner(`WAVE ${passiveReqWave(p.key)} 해금`, 1.1); return; }
+  if(activePassiveCount() >= passiveSlotLimit()){ showBanner(`패시브 슬롯 한도 ${passiveSlotLimit()}개`, 1.1); return; }
   state.gold -= p.cost;
   state.passives[p.key] = 1;
   clampEnergy();
@@ -723,6 +995,7 @@ function upgradeSelected(){
   state.gold -= cost;
   t.level = nextLevel;
   t.spent += cost;
+  state.supportDirty = true;
   const hpScale = (t.family === 'wall' || t.family === 'bunker') ? 1.42 : (t.family.startsWith('support_') || t.family === 'gold' || t.family === 'heal' ? 1.18 : 1.26);
   t.maxHp = Math.round(t.maxHp * hpScale);
   t.hp = Math.min(t.maxHp, t.hp + t.maxHp * (t.family === 'wall' || t.family === 'bunker' ? 0.45 : 0.30));
@@ -736,6 +1009,7 @@ function sellSelected(){
   state.gold += Math.round(turretTotalSpent(t) * 0.65);
   if(hasPassive('salvage_relay')) healEnergy(2);
   state.turrets = state.turrets.filter(v => v.id !== t.id);
+  state.supportDirty = true;
   state.selectedTurretId = null; updateHud(); refreshActionBar(); showBanner('판매 완료', 1.1);
 }
 
@@ -744,6 +1018,7 @@ function resetGame(){
   state.selectedInstall = INSTALLS[0].key; state.selectedPassive = PASSIVES[0].key; state.selectedTurretId = null;
   state.turrets = []; state.enemies = []; state.bullets = []; state.effects = []; state.pools = []; state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.0; state.last = 0; state.bannerUntil = 0;
   state.passives = {}; state.emergencyUsed = false; state.energyLossBank = 0; state.damageBuffs = []; state.animClock = 0;
+  state.supportCache = new Map(); state.supportDirty = true;
   banner.style.display='none'; banner.style.opacity='0'; pauseBtn.textContent='정지'; updateHud(); buildDeck(); updateSelectedName(); refreshActionBar(); scrollToPage(0);
 }
 
@@ -764,133 +1039,46 @@ function resetGame(){
     showBanner('배치 후 방어를 시작하세요.', 1.6);
   }
   function earlyWaveSpeedScale(wave = state.wave){
-    if(wave <= 1) return 0.28;
-    if(wave === 2) return 0.31;
-    if(wave === 3) return 0.35;
-    if(wave === 4) return 0.40;
-    if(wave === 5) return 0.46;
-    if(wave === 6) return 0.53;
-    if(wave === 7) return 0.58;
-    if(wave === 8) return 0.63;
-    if(wave === 9) return 0.68;
-    if(wave === 10) return 0.72;
-    if(wave === 11) return 0.76;
-    if(wave === 12) return 0.80;
-    if(wave === 13) return 0.84;
-    if(wave === 14) return 0.88;
-    if(wave === 15) return 0.92;
-    if(wave === 16) return 0.95;
-    if(wave === 17) return 0.98;
-    if(wave === 18) return 1.00;
-    if(wave === 19) return 1.03;
-    if(wave === 20) return 1.06;
-    return Math.min(1.16, 1.06 + (wave - 20) * 0.014);
+    const t = Math.max(0, Math.min(1, (Math.max(1, wave) - 1) / 99));
+    return 0.30 + Math.pow(t, 0.80) * 1.10;
   }
   function earlyWaveHpScale(wave = state.wave){
-    if(wave <= 1) return 0.38;
-    if(wave === 2) return 0.42;
-    if(wave === 3) return 0.48;
-    if(wave === 4) return 0.56;
-    if(wave === 5) return 0.63;
-    if(wave === 6) return 0.74;
-    if(wave === 7) return 0.80;
-    if(wave === 8) return 0.86;
-    if(wave === 9) return 0.92;
-    if(wave === 10) return 0.98;
-    if(wave === 11) return 1.04;
-    if(wave === 12) return 1.10;
-    if(wave === 13) return 1.16;
-    if(wave === 14) return 1.22;
-    if(wave === 15) return 1.28;
-    if(wave === 16) return 1.34;
-    if(wave === 17) return 1.40;
-    if(wave === 18) return 1.46;
-    if(wave === 19) return 1.52;
-    if(wave === 20) return 1.58;
-    return Math.min(1.96, 1.58 + (wave - 20) * 0.038);
+    const t = Math.max(0, Math.min(1, (Math.max(1, wave) - 1) / 99));
+    return 0.42 + Math.pow(t, 1.12) * 4.18;
   }
   function earlyWaveDamageScale(wave = state.wave){
-    if(wave <= 1) return 0.22;
-    if(wave === 2) return 0.26;
-    if(wave === 3) return 0.32;
-    if(wave === 4) return 0.40;
-    if(wave === 5) return 0.48;
-    if(wave === 6) return 0.58;
-    if(wave === 7) return 0.64;
-    if(wave === 8) return 0.70;
-    if(wave === 9) return 0.76;
-    if(wave === 10) return 0.82;
-    if(wave === 11) return 0.87;
-    if(wave === 12) return 0.92;
-    if(wave === 13) return 0.97;
-    if(wave === 14) return 1.02;
-    if(wave === 15) return 1.06;
-    if(wave === 16) return 1.10;
-    if(wave === 17) return 1.13;
-    if(wave === 18) return 1.16;
-    if(wave === 19) return 1.19;
-    if(wave === 20) return 1.22;
-    return Math.min(1.42, 1.22 + (wave - 20) * 0.020);
+    const t = Math.max(0, Math.min(1, (Math.max(1, wave) - 1) / 99));
+    return 0.26 + Math.pow(t, 1.08) * 2.34;
   }
   function earlyWaveCount(wave = state.wave){
-    if(wave <= 1) return 2;
-    if(wave === 2) return 2;
-    if(wave === 3) return 3;
-    if(wave === 4) return 4;
-    if(wave === 5) return 4;
-    if(wave === 6) return 6;
-    if(wave === 7) return 6;
-    if(wave === 8) return 7;
-    if(wave === 9) return 8;
-    if(wave === 10) return 8;
-    if(wave <= 15) return 8 + Math.floor((wave - 10) * 0.9);
-    if(wave <= 20) return 12 + Math.floor((wave - 15) * 0.9);
-    return 16 + Math.floor((wave - 20) * 1.0);
+    const t = Math.max(0, Math.min(1, (Math.max(1, wave) - 1) / 99));
+    return Math.round(2 + Math.pow(t, 0.92) * 30);
   }
   function currentSpawnInterval(){
-    const wave = state.wave;
-    if(wave <= 1) return 2.95;
-    if(wave === 2) return 2.68;
-    if(wave === 3) return 2.32;
-    if(wave === 4) return 2.00;
-    if(wave === 5) return 1.76;
-    if(wave === 6) return 1.58;
-    if(wave === 7) return 1.46;
-    if(wave === 8) return 1.34;
-    if(wave === 9) return 1.24;
-    if(wave === 10) return 1.18;
-    if(wave <= 15) return Math.max(0.98, 1.18 - (wave - 10) * 0.045);
-    if(wave <= 20) return Math.max(0.82, 0.955 - (wave - 15) * 0.033);
-    return Math.max(0.66, 0.79 - (wave - 20) * 0.024);
+    const t = Math.max(0, Math.min(1, (currentProgressWave() - 1) / 99));
+    return Math.max(0.50, 2.75 - Math.pow(t, 0.78) * 2.10);
   }
   function unlockedMonsterCount(){
-    const wave = state.wave;
-    if(wave <= 1) return Math.min(MONSTERS.length, 3);
-    if(wave === 2) return Math.min(MONSTERS.length, 4);
-    if(wave === 3) return Math.min(MONSTERS.length, 5);
-    if(wave === 4) return Math.min(MONSTERS.length, 6);
-    if(wave === 5) return Math.min(MONSTERS.length, 7);
-    if(wave === 6) return Math.min(MONSTERS.length, 9);
-    if(wave === 7) return Math.min(MONSTERS.length, 10);
-    if(wave === 8) return Math.min(MONSTERS.length, 11);
-    if(wave === 9) return Math.min(MONSTERS.length, 12);
-    if(wave === 10) return Math.min(MONSTERS.length, 13);
-    if(wave <= 15) return Math.min(MONSTERS.length, 12 + (wave - 10));
-    if(wave <= 20) return Math.min(MONSTERS.length, 17 + Math.floor((wave - 15) * 1.4));
-    return Math.min(MONSTERS.length, 24 + Math.floor((wave - 20) * 2.0));
+    const t = Math.max(0, Math.min(1, (currentProgressWave() - 1) / 99));
+    return Math.min(MONSTERS.length, 3 + Math.floor(Math.pow(t, 0.74) * (MONSTERS.length - 3)));
   }
 
   function buildWaveQueue(){
-    const count = state.wave % 10 === 0 ? Math.max(5, earlyWaveCount() - 2) : earlyWaveCount();
+    const bossWave = state.wave % 10 === 0;
+    const count = bossWave ? Math.max(4, earlyWaveCount() - 4) : earlyWaveCount();
     const list = [];
     const unlocked = unlockedMonsterCount();
+    const eliteStart = Math.max(0, unlocked - Math.max(4, Math.floor(unlocked * 0.28)));
     for(let i=0;i<count;i++){
-      const id = Math.floor(Math.random() * unlocked);
+      let id;
+      const roll = Math.random();
+      if(currentProgressWave() >= 55 && roll > 0.76) id = eliteStart + Math.floor(Math.random() * Math.max(1, unlocked - eliteStart));
+      else id = Math.floor(Math.random() * unlocked);
       list.push({monsterId:id});
     }
-    if(state.wave % 10 === 0){
+    if(bossWave){
       const bossId = Math.min(BOSSES.length - 1, Math.floor(state.wave / 10) - 1);
-      list.splice(Math.max(1, Math.floor(list.length * 0.55)), 0, {boss:true, bossId});
+      list.splice(Math.max(1, Math.floor(list.length * 0.52)), 0, {boss:true, bossId});
     }
     return list;
   }
@@ -898,11 +1086,12 @@ function resetGame(){
   function spawnWave(){
     state.wave += 1;
     state.spawnQueue = buildWaveQueue();
-    state.spawnTimer = state.wave <= 3 ? 0.72 : (state.wave <= 10 ? 0.46 : 0.28);
-    state.gold += 8 + Math.min(24, Math.floor(state.wave * 1.05));
+    state.spawnTimer = state.wave <= 5 ? 0.82 : (state.wave <= 20 ? 0.62 : currentSpawnInterval());
+    state.gold += 10 + Math.min(32, Math.floor(state.wave * 0.92));
     healEnergy(state.wave % 10 === 0 ? 3 : 1);
     if(hasPassive('surge_cycle')) healEnergy(5);
     updateHud();
+    buildDeck();
     showBanner(state.wave % 10 === 0 ? `WAVE ${state.wave} - BOSS APPROACH` : `WAVE ${state.wave}`);
   }
 
@@ -928,17 +1117,37 @@ function resetGame(){
 
   function spawnNext(){ const next = state.spawnQueue.shift(); if(!next) return; if(next.boss) spawnEnemyFromTemplate(BOSSES[next.bossId], true); else spawnEnemyFromTemplate(MONSTERS[next.monsterId], false); }
 
-  function getTurretBuffs(t){
-    const buffs = {range:0, damage:1, enemySlow:1};
-    for(const other of state.turrets){
-      if(other.id === t.id) continue;
-      const d = Math.hypot(other.x - t.x, other.y - t.y);
-      if(d > (other.base.aura || 0)) continue;
-      if(other.family === 'support_range') buffs.range += other.base.buffRange || 0;
-      if(other.family === 'support_damage') buffs.damage *= other.base.buffDamage || 1;
-      if(other.family === 'support_slow') buffs.enemySlow *= other.base.enemySlow || 1;
+  function rebuildSupportCache(){
+    const cache = new Map();
+    for(const t of state.turrets){
+      cache.set(t.id, {range:0, damage:1, enemySlow:1});
     }
-    return buffs;
+    const supporters = state.turrets.filter(t =>
+      t.family === 'support_range' ||
+      t.family === 'support_damage' ||
+      t.family === 'support_slow'
+    );
+    for(const s of supporters){
+      const aura = s.base.aura || 0;
+      if(aura <= 0) continue;
+      for(const t of state.turrets){
+        if(t.id === s.id) continue;
+        const d = Math.hypot(s.x - t.x, s.y - t.y);
+        if(d > aura) continue;
+        const buff = cache.get(t.id);
+        if(!buff) continue;
+        if(s.family === 'support_range') buff.range += s.base.buffRange || 0;
+        if(s.family === 'support_damage') buff.damage *= s.base.buffDamage || 1;
+        if(s.family === 'support_slow') buff.enemySlow *= s.base.enemySlow || 1;
+      }
+    }
+    state.supportCache = cache;
+    state.supportDirty = false;
+  }
+
+  function getTurretBuffs(t){
+    if(state.supportDirty) rebuildSupportCache();
+    return state.supportCache.get(t.id) || {range:0, damage:1, enemySlow:1};
   }
 
 
@@ -1003,6 +1212,8 @@ function getTurretStats(t){
     case 'solar': if(lv >= 2){ income += 4; fire *= 0.90; } if(lv >= 3){ income += 6; fire *= 0.84; } break;
     case 'poisonBarrel': if(lv >= 2){ poison += 3; } if(lv >= 3){ splash += 14; damage *= 1.16; } break;
     case 'drone': if(lv >= 2){ shots += 1; range += 20; } if(lv >= 3){ shots += 1; fire *= 0.86; bulletSpeed += 45; } break;
+    case 'gauss': if(lv >= 2){ damage *= 1.20; range += 24; } if(lv >= 3){ shots = Math.max(shots, 2); fire *= 0.88; bulletSpeed += 120; } break;
+    case 'reactor': if(lv >= 2){ income += 8; fire *= 0.90; } if(lv >= 3){ income += 12; fire *= 0.82; } break;
   }
 
   damage *= buffs.damage * damageMul;
@@ -1150,8 +1361,11 @@ function getTurretStats(t){
     if(e.curseRate) target.cooldown += e.curseRate;
     if(target.hp <= 0){
       const idx = state.turrets.findIndex(v => v.id === target.id); if(idx >= 0) state.turrets.splice(idx,1);
+      state.supportDirty = true;
       if(state.selectedTurretId === target.id){ state.selectedTurretId = null; refreshActionBar(); }
       state.effects.push({type:'boom', x:target.x, y:target.y, r:18, life:0.18});
+    } else if(state.selectedTurretId === target.id){
+      refreshActionBar();
     }
   }
 
@@ -1264,7 +1478,8 @@ function onEnemyKilled(e){
         if((t.family === 'wall' || t.family === 'bunker') && t.col === e.col){
           if(e.y + e.size * 0.4 >= t.y - state.field.tileH * 0.35 && e.y < t.y + state.field.tileH * 0.24){
             blocked = true; t.hp -= (e.baseDamage * (e.smash ? 1.35 : 1)) * dt * 5.2;
-            if(t.hp <= 0){ const idx = state.turrets.findIndex(v => v.id === t.id); if(idx >= 0) state.turrets.splice(idx,1); if(state.selectedTurretId === t.id){ state.selectedTurretId = null; refreshActionBar(); } state.effects.push({type:'boom', x:t.x, y:t.y, r:22, life:0.2}); }
+            if(t.hp <= 0){ const idx = state.turrets.findIndex(v => v.id === t.id); if(idx >= 0) state.turrets.splice(idx,1); state.supportDirty = true; if(state.selectedTurretId === t.id){ state.selectedTurretId = null; refreshActionBar(); } state.effects.push({type:'boom', x:t.x, y:t.y, r:22, life:0.2}); }
+            else if(state.selectedTurretId === t.id){ refreshActionBar(); }
             break;
           }
         }
@@ -1284,7 +1499,7 @@ function onEnemyKilled(e){
     }
 
     for(let i=state.effects.length-1;i>=0;i--){ state.effects[i].life -= dt; if(state.effects[i].life <= 0) state.effects.splice(i,1); }
-    refreshActionBar(); if(state.bannerUntil && state.bannerUntil < performance.now()/1000){ hideBanner(); state.bannerUntil = 0; }
+    if(state.bannerUntil && state.bannerUntil < performance.now()/1000){ hideBanner(); state.bannerUntil = 0; }
   }
 
 
@@ -1545,44 +1760,370 @@ function onEnemyKilled(e){
   function poly(c,pts){ c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.closePath(); c.fill(); }
 
   function drawInstallModel(c, item, cx, cy, w, h, level=1, isCard=false){
-    const dark = '#16212d'; const steel = '#d9e4ef'; const accent = item.color || '#7ccfff';
+    const steel = '#d9e4ef';
+    const accent = item.color || '#7ccfff';
+    const lv2 = level >= 2;
+    const lv3 = level >= 3;
+
     shapeCtx(c, cx, cy, w, h, accent);
     const W = w, H = h;
-    const basePlate = () => { c.fillStyle = '#253242'; c.fillRect(-W*0.32, H*0.12, W*0.64, H*0.13); c.fillStyle = accent; };
+
+    const basePlate = (scale=1) => {
+      c.fillStyle = '#253242';
+      c.fillRect(-W*0.32*scale, H*0.12, W*0.64*scale, H*0.13);
+      if(lv2){
+        c.fillStyle = 'rgba(255,255,255,.18)';
+        c.fillRect(-W*0.24*scale, H*0.15, W*0.48*scale, H*0.03);
+      }
+      if(lv3){
+        c.fillStyle = accent;
+        c.fillRect(-W*0.34*scale, H*0.08, W*0.68*scale, H*0.03);
+        c.fillStyle = 'rgba(255,255,255,.12)';
+        c.fillRect(-W*0.18*scale, H*0.18, W*0.36*scale, H*0.03);
+      }
+      c.fillStyle = accent;
+    };
+
+    const glowCore = (x,y,r,alpha=0.22) => {
+      c.save();
+      c.globalAlpha = alpha;
+      c.beginPath();
+      c.arc(x,y,r,0,Math.PI*2);
+      c.fill();
+      c.restore();
+    };
+
+    const armorBands = (y, width, count=2) => {
+      c.fillStyle = 'rgba(255,255,255,.18)';
+      for(let i=0;i<count;i++){
+        const oy = y + i * H * 0.06;
+        c.fillRect(-width/2, oy, width, H*0.025);
+      }
+      c.fillStyle = accent;
+    };
+
+    const sidePods = (y, width, height) => {
+      c.fillStyle = '#2b3746';
+      c.fillRect(-W*0.24, y, width, height);
+      c.fillRect(W*0.24 - width, y, width, height);
+      c.fillStyle = accent;
+    };
+
     switch(item.model){
-      case 'rifle': basePlate(); c.fillRect(-W*0.10,-H*0.02,W*0.20,H*0.24); c.fillStyle=steel; barrel(c,W*0.02,-H*0.10,W*0.26,H*0.08); break;
-      case 'smg': basePlate(); dome(c,0,H*0.02,W*0.13); c.fillStyle=steel; barrel(c,-W*0.15,-H*0.04,W*0.14,H*0.06); barrel(c,W*0.01,-H*0.04,W*0.14,H*0.06); break;
-      case 'burst': basePlate(); c.fillRect(-W*0.12,-H*0.02,W*0.24,H*0.18); c.fillStyle=steel; for(let i=-1;i<=1;i++) barrel(c,i*W*0.11,-H*0.10,W*0.08,H*0.08); break;
-      case 'sniper': basePlate(); c.fillRect(-W*0.07,-H*0.03,W*0.14,H*0.18); c.fillStyle=steel; barrel(c,0,-H*0.10,W*0.33,H*0.06); c.fillStyle='#202b38'; c.fillRect(W*0.06,-H*0.16,W*0.13,H*0.05); break;
-      case 'cannon': basePlate(); dome(c,0,0,W*0.17); c.fillStyle=steel; barrel(c,-W*0.05,-H*0.05,W*0.30,H*0.12); break;
-      case 'mortar': basePlate(); poly(c,[[-W*0.22,H*0.12],[0,-H*0.18],[W*0.22,H*0.12]]); c.fillStyle='#263244'; c.fillRect(-W*0.05,-H*0.02,W*0.10,H*0.18); break;
-      case 'rocket': basePlate(); c.fillRect(-W*0.26,-H*0.12,W*0.52,H*0.18); c.fillStyle='#24313f'; c.fillRect(-W*0.22,-H*0.08,W*0.44,H*0.10); c.fillStyle='#ffddb6'; poly(c,[[W*0.26,-H*0.03],[W*0.34,0],[W*0.26,H*0.05]]); break;
-      case 'shotgun': basePlate(); c.fillRect(-W*0.11,-H*0.01,W*0.22,H*0.20); c.fillStyle=steel; barrel(c,-W*0.18,-H*0.10,W*0.12,H*0.08); barrel(c,W*0.06,-H*0.10,W*0.12,H*0.08); break;
-      case 'laser': basePlate(); c.fillRect(-W*0.04,-H*0.08,W*0.08,H*0.28); c.fillStyle='#ffe2e8'; c.fillRect(-W*0.18,-H*0.20,W*0.36,H*0.08); break;
-      case 'rail': basePlate(); c.fillRect(-W*0.08,-H*0.05,W*0.16,H*0.25); c.fillStyle='#f0fbff'; c.fillRect(-W*0.04,-H*0.18,W*0.34,H*0.06); c.fillRect(-W*0.18,-H*0.12,W*0.12,H*0.06); break;
-      case 'shock': basePlate(); dome(c,0,0,W*0.14); c.fillStyle='#f5ebff'; poly(c,[[-W*0.05,-H*0.18],[W*0.02,-H*0.08],[-W*0.02,-H*0.08],[W*0.05,H*0.02],[-W*0.02,H*0.02]]); break;
-      case 'tesla': basePlate(); c.fillRect(-W*0.05,-H*0.18,W*0.10,H*0.34); c.fillStyle='#f6eeff'; poly(c,[[-W*0.14,-H*0.04],[0,-H*0.20],[W*0.08,-H*0.02],[W*0.02,-H*0.02],[W*0.14,H*0.14]]); break;
-      case 'flame': basePlate(); c.fillRect(-W*0.08,-H*0.02,W*0.16,H*0.20); c.fillStyle='#fff0cf'; poly(c,[[0,-H*0.22],[W*0.08,-H*0.02],[0,H*0.02],[-W*0.08,-H*0.02]]); break;
-      case 'acid': basePlate(); dome(c,0,H*0.02,W*0.16); c.fillStyle='#d6ffd5'; dome(c,0,-H*0.12,W*0.08); break;
-      case 'frost': basePlate(); poly(c,[[0,-H*0.22],[W*0.06,-H*0.08],[W*0.18,-H*0.12],[W*0.08,0],[W*0.20,H*0.08],[W*0.04,H*0.08],[0,H*0.22],[-W*0.04,H*0.08],[-W*0.20,H*0.08],[-W*0.08,0],[-W*0.18,-H*0.12],[-W*0.06,-H*0.08]]); break;
-      case 'chain': basePlate(); c.fillRect(-W*0.04,-H*0.18,W*0.08,H*0.30); c.fillStyle='#eff4ff'; for(let i=-1;i<=1;i++) dome(c,i*W*0.12,-H*0.12,W*0.05); break;
-      case 'saw': c.fillStyle='#2c3644'; c.fillRect(-W*0.26,H*0.08,W*0.52,H*0.10); c.fillStyle=accent; for(let i=-4;i<=4;i++) poly(c,[[i*W*0.06,-H*0.02],[i*W*0.06+W*0.03,H*0.12],[i*W*0.06-W*0.03,H*0.12]]); break;
-      case 'spike': c.fillStyle='#2c3644'; c.fillRect(-W*0.26,H*0.08,W*0.52,H*0.10); c.fillStyle=accent; for(let i=-3;i<=3;i++) poly(c,[[i*W*0.07,-H*0.14],[i*W*0.07+W*0.03,H*0.08],[i*W*0.07-W*0.03,H*0.08]]); break;
-      case 'mine': c.fillStyle='#2a3344'; dome(c,0,H*0.02,W*0.18); c.fillStyle='#fff4d7'; dome(c,0,-H*0.04,W*0.06); break;
-      case 'freezeTrap': c.fillStyle='#1f2a3c'; dome(c,0,H*0.02,W*0.17); c.fillStyle='#dff7ff'; poly(c,[[-W*0.10,-H*0.06],[0,-H*0.18],[W*0.10,-H*0.06],[0,H*0.08]]); break;
-      case 'wall': c.fillStyle='#76879a'; c.fillRect(-W*0.28,-H*0.12,W*0.56,H*0.32); c.fillStyle='#445364'; c.fillRect(-W*0.24,-H*0.08,W*0.14,H*0.08); c.fillRect(-W*0.04,-H*0.08,W*0.14,H*0.08); c.fillRect(W*0.16,-H*0.08,W*0.08,H*0.08); break;
-      case 'bunker': c.fillStyle='#8c99a8'; c.fillRect(-W*0.30,-H*0.10,W*0.60,H*0.34); c.fillStyle='#2b3138'; c.fillRect(-W*0.20,H*0.02,W*0.40,H*0.12); c.fillStyle='#f9d18e'; barrel(c,-W*0.04,-H*0.20,W*0.22,H*0.08); break;
-      case 'radar': basePlate(); dome(c,0,0,W*0.12); c.strokeStyle='#d9f3ff'; c.beginPath(); c.arc(0,0,W*0.22,Math.PI*1.1,Math.PI*1.8); c.stroke(); c.beginPath(); c.arc(0,0,W*0.32,Math.PI*1.15,Math.PI*1.85); c.stroke(); break;
-      case 'magnet': basePlate(); c.lineWidth=Math.max(2,W*0.07); c.strokeStyle='#ffe2f3'; c.beginPath(); c.arc(0,-H*0.02,W*0.14,Math.PI*0.1,Math.PI*0.9); c.stroke(); c.fillStyle='#fff'; c.fillRect(-W*0.10,H*0.05,W*0.05,H*0.08); c.fillRect(W*0.05,H*0.05,W*0.05,H*0.08); break;
-      case 'fan': basePlate(); dome(c,0,0,W*0.06); for(let i=0;i<4;i++){ c.save(); c.rotate(i*Math.PI/2); poly(c,[[0,0],[W*0.20,-H*0.05],[W*0.10,H*0.04]]); c.restore(); } break;
-      case 'medic': c.fillStyle='#dff9e6'; c.fillRect(-W*0.18,-H*0.18,W*0.36,H*0.36); c.fillStyle=accent; c.fillRect(-W*0.04,-H*0.14,W*0.08,H*0.28); c.fillRect(-W*0.14,-H*0.04,W*0.28,H*0.08); break;
-      case 'bank': c.fillStyle='#3f4a2a'; c.fillRect(-W*0.25,-H*0.14,W*0.50,H*0.34); c.fillStyle='#ffd76a'; c.fillRect(-W*0.10,-H*0.02,W*0.20,H*0.12); c.fillStyle='#2b2d1e'; c.fillRect(-W*0.05,H*0.02,W*0.10,H*0.08); break;
-      case 'solar': c.fillStyle='#3d3f54'; c.fillRect(-W*0.26,H*0.04,W*0.52,H*0.08); c.fillStyle='#91b7ff'; c.fillRect(-W*0.22,-H*0.14,W*0.44,H*0.16); c.fillStyle='#ffd36a'; dome(c,0,-H*0.20,W*0.08); break;
-      case 'poisonBarrel': c.fillStyle='#47603a'; c.fillRect(-W*0.16,-H*0.18,W*0.32,H*0.38); c.fillStyle='#d2ffd0'; c.fillRect(-W*0.16,-H*0.08,W*0.32,H*0.04); c.fillRect(-W*0.04,-H*0.14,W*0.08,H*0.26); break;
-      case 'drone': c.fillStyle='#d9fbff'; dome(c,0,-H*0.02,W*0.12); c.fillStyle=accent; c.fillRect(-W*0.28,-H*0.06,W*0.56,H*0.05); c.fillRect(-W*0.05,-H*0.22,W*0.10,H*0.40); break;
-      default: basePlate(); dome(c,0,0,W*0.12); break;
+      case 'rifle':
+        basePlate(lv3 ? 1.12 : 1);
+        c.fillRect(-W*0.10,-H*0.02,W*0.20,H*0.24);
+        if(lv2) c.fillRect(-W*0.16,H*0.04,W*0.32,H*0.09);
+        if(lv3) sidePods(H*0.01, W*0.08, H*0.10);
+        c.fillStyle = steel;
+        barrel(c,W*0.02,-H*0.10,W*(lv3 ? 0.34 : 0.26),H*0.08);
+        if(lv2) barrel(c,W*0.00,-H*0.19,W*0.25,H*0.05);
+        break;
+      case 'smg':
+        basePlate();
+        dome(c,0,H*0.02,W*(lv3 ? 0.16 : 0.13));
+        if(lv2) c.fillRect(-W*0.16,H*0.03,W*0.32,H*0.08);
+        c.fillStyle = steel;
+        barrel(c,-W*(lv3 ? 0.20 : 0.15),-H*0.04,W*0.14,H*0.06);
+        barrel(c,W*0.01,-H*0.04,W*0.14,H*0.06);
+        if(lv3) barrel(c,-W*0.09,-H*0.16,W*0.18,H*0.05);
+        break;
+      case 'burst':
+        basePlate();
+        c.fillRect(-W*0.12,-H*0.02,W*0.24,H*0.18);
+        if(lv2) c.fillRect(-W*0.18,H*0.02,W*0.36,H*0.08);
+        c.fillStyle = steel;
+        for(let i=-1;i<=1;i++) barrel(c,i*W*0.11,-H*0.10,W*0.08,H*0.08);
+        if(lv3) for(let i=-1;i<=1;i++) barrel(c,i*W*0.12,-H*0.20,W*0.07,H*0.05);
+        break;
+      case 'sniper':
+        basePlate();
+        c.fillRect(-W*0.07,-H*0.03,W*0.14,H*0.18);
+        if(lv2) c.fillRect(-W*0.12,H*0.02,W*0.24,H*0.08);
+        c.fillStyle = steel;
+        barrel(c,0,-H*0.10,W*(lv3 ? 0.42 : 0.33),H*0.06);
+        c.fillStyle = '#202b38';
+        c.fillRect(W*0.06,-H*0.16,W*0.13,H*0.05);
+        if(lv3) c.fillRect(-W*0.12,-H*0.18,W*0.08,H*0.04);
+        break;
+      case 'cannon':
+        basePlate();
+        dome(c,0,0,W*(lv3 ? 0.20 : 0.17));
+        if(lv2) armorBands(-H*0.01, W*0.34, 2);
+        c.fillStyle = steel;
+        barrel(c,-W*0.05,-H*0.05,W*(lv3 ? 0.38 : 0.30),H*0.12);
+        if(lv3) barrel(c,W*0.10,-H*0.14,W*0.12,H*0.05);
+        break;
+      case 'mortar':
+        basePlate();
+        poly(c,[[-W*0.22,H*0.12],[0,-H*(lv3 ? 0.24 : 0.18)],[W*0.22,H*0.12]]);
+        c.fillStyle = '#263244';
+        c.fillRect(-W*0.05,-H*0.02,W*0.10,H*0.18);
+        if(lv2) sidePods(H*0.06, W*0.08, H*0.08);
+        if(lv3){ c.fillStyle = '#ffefc4'; dome(c,0,-H*0.20,W*0.05); }
+        break;
+      case 'rocket':
+        basePlate();
+        c.fillRect(-W*0.26,-H*0.12,W*0.52,H*0.18);
+        c.fillStyle = '#24313f';
+        c.fillRect(-W*0.22,-H*0.08,W*0.44,H*0.10);
+        if(lv2) c.fillRect(-W*0.22,H*0.05,W*0.44,H*0.05);
+        c.fillStyle = '#ffddb6';
+        poly(c,[[W*0.26,-H*0.03],[W*0.34,0],[W*0.26,H*0.05]]);
+        if(lv3){
+          c.fillStyle = '#ffd6a8';
+          poly(c,[[-W*0.28,-H*0.02],[-W*0.36,0],[-W*0.28,H*0.05]]);
+          c.fillRect(-W*0.10,-H*0.22,W*0.20,H*0.05);
+        }
+        break;
+      case 'shotgun':
+        basePlate();
+        c.fillRect(-W*0.11,-H*0.01,W*0.22,H*0.20);
+        if(lv2) c.fillRect(-W*0.18,H*0.05,W*0.36,H*0.07);
+        c.fillStyle = steel;
+        barrel(c,-W*0.18,-H*0.10,W*0.12,H*0.08);
+        barrel(c,W*0.06,-H*0.10,W*0.12,H*0.08);
+        if(lv3) barrel(c,-W*0.06,-H*0.20,W*0.12,H*0.05);
+        break;
+      case 'laser':
+        basePlate();
+        c.fillRect(-W*0.04,-H*0.08,W*0.08,H*0.28);
+        if(lv2) c.fillRect(-W*0.10,H*0.06,W*0.20,H*0.05);
+        c.fillStyle = '#ffe2e8';
+        c.fillRect(-W*(lv3 ? 0.24 : 0.18),-H*0.20,W*(lv3 ? 0.48 : 0.36),H*0.08);
+        if(lv3){ c.fillRect(-W*0.10,-H*0.28,W*0.20,H*0.04); glowCore(0,-H*0.16,W*0.10,0.26); }
+        break;
+      case 'rail':
+        basePlate();
+        c.fillRect(-W*0.08,-H*0.05,W*0.16,H*0.25);
+        if(lv2) armorBands(H*0.00, W*0.24, 2);
+        c.fillStyle = '#f0fbff';
+        c.fillRect(-W*0.04,-H*0.18,W*(lv3 ? 0.42 : 0.34),H*0.06);
+        c.fillRect(-W*0.18,-H*0.12,W*0.12,H*0.06);
+        if(lv3) c.fillRect(-W*0.20,-H*0.24,W*0.16,H*0.04);
+        break;
+      case 'shock':
+        basePlate();
+        dome(c,0,0,W*(lv3 ? 0.16 : 0.14));
+        if(lv2) glowCore(0,0,W*0.20,0.18);
+        c.fillStyle = '#f5ebff';
+        poly(c,[[-W*0.05,-H*0.18],[W*0.02,-H*0.08],[-W*0.02,-H*0.08],[W*0.05,H*0.02],[-W*0.02,H*0.02]]);
+        if(lv3) poly(c,[[W*0.04,-H*0.20],[W*0.12,-H*0.08],[W*0.06,-H*0.08],[W*0.16,H*0.04],[W*0.06,H*0.04]]);
+        break;
+      case 'tesla':
+        basePlate();
+        c.fillRect(-W*0.05,-H*0.18,W*0.10,H*0.34);
+        if(lv2) c.fillRect(-W*0.12,H*0.08,W*0.24,H*0.05);
+        c.fillStyle = '#f6eeff';
+        poly(c,[[-W*0.14,-H*0.04],[0,-H*0.20],[W*0.08,-H*0.02],[W*0.02,-H*0.02],[W*0.14,H*0.14]]);
+        if(lv3){
+          poly(c,[[-W*0.16,H*0.06],[-W*0.02,-H*0.10],[W*0.04,H*0.04],[-W*0.02,H*0.04],[W*0.14,H*0.18]]);
+          glowCore(0,-H*0.08,W*0.12,0.18);
+        }
+        break;
+      case 'flame':
+        basePlate();
+        c.fillRect(-W*0.08,-H*0.02,W*0.16,H*0.20);
+        if(lv2) c.fillRect(-W*0.14,H*0.05,W*0.28,H*0.06);
+        c.fillStyle = '#fff0cf';
+        poly(c,[[0,-H*0.22],[W*0.08,-H*0.02],[0,H*0.02],[-W*0.08,-H*0.02]]);
+        if(lv3){ c.fillStyle = '#ffd28f'; poly(c,[[0,-H*0.30],[W*0.06,-H*0.12],[0,-H*0.02],[-W*0.06,-H*0.12]]); }
+        break;
+      case 'acid':
+        basePlate();
+        dome(c,0,H*0.02,W*(lv3 ? 0.19 : 0.16));
+        c.fillStyle = '#d6ffd5';
+        dome(c,0,-H*0.12,W*(lv2 ? 0.10 : 0.08));
+        if(lv3){ dome(c,-W*0.12,-H*0.04,W*0.05); dome(c,W*0.12,-H*0.04,W*0.05); }
+        break;
+      case 'frost':
+        basePlate();
+        poly(c,[[0,-H*0.22],[W*0.06,-H*0.08],[W*0.18,-H*0.12],[W*0.08,0],[W*0.20,H*0.08],[W*0.04,H*0.08],[0,H*0.22],[-W*0.04,H*0.08],[-W*0.20,H*0.08],[-W*0.08,0],[-W*0.18,-H*0.12],[-W*0.06,-H*0.08]]);
+        if(lv2){ c.fillStyle = '#e8faff'; dome(c,0,0,W*0.05); }
+        if(lv3){ c.strokeStyle = '#dff7ff'; c.lineWidth = Math.max(1.4, W*0.04); c.beginPath(); c.arc(0,0,W*0.22,0,Math.PI*2); c.stroke(); }
+        break;
+      case 'chain':
+        basePlate();
+        c.fillRect(-W*0.04,-H*0.18,W*0.08,H*0.30);
+        if(lv2) c.fillRect(-W*0.10,H*0.06,W*0.20,H*0.05);
+        c.fillStyle = '#eff4ff';
+        for(let i=-1;i<=1;i++) dome(c,i*W*0.12,-H*0.12,W*0.05);
+        if(lv3){ dome(c,-W*0.18,H*0.02,W*0.04); dome(c,W*0.18,H*0.02,W*0.04); }
+        break;
+      case 'saw':
+        c.fillStyle = '#2c3644';
+        c.fillRect(-W*0.26,H*0.08,W*0.52,H*0.10);
+        if(lv2) c.fillRect(-W*0.30,H*0.03,W*0.60,H*0.04);
+        c.fillStyle = accent;
+        for(let i=-4;i<=4;i++) poly(c,[[i*W*0.06,-H*0.02],[i*W*0.06+W*0.03,H*0.12],[i*W*0.06-W*0.03,H*0.12]]);
+        if(lv3) for(let i=-3;i<=3;i++) poly(c,[[i*W*0.07,-H*0.14],[i*W*0.07+W*0.025,H*0.02],[i*W*0.07-W*0.025,H*0.02]]);
+        break;
+      case 'spike':
+        c.fillStyle = '#2c3644';
+        c.fillRect(-W*0.26,H*0.08,W*0.52,H*0.10);
+        if(lv2) c.fillRect(-W*0.28,H*0.03,W*0.56,H*0.04);
+        c.fillStyle = accent;
+        for(let i=-3;i<=3;i++) poly(c,[[i*W*0.07,-H*0.14],[i*W*0.07+W*0.03,H*0.08],[i*W*0.07-W*0.03,H*0.08]]);
+        if(lv3) for(let i=-2;i<=2;i++) poly(c,[[i*W*0.10,-H*0.24],[i*W*0.10+W*0.025,H*0.00],[i*W*0.10-W*0.025,H*0.00]]);
+        break;
+      case 'mine':
+        c.fillStyle = '#2a3344';
+        dome(c,0,H*0.02,W*(lv3 ? 0.21 : 0.18));
+        if(lv2) armorBands(H*0.01, W*0.22, 2);
+        c.fillStyle = '#fff4d7';
+        dome(c,0,-H*0.04,W*0.06);
+        if(lv3) dome(c,0,-H*0.14,W*0.04);
+        break;
+      case 'freezeTrap':
+        c.fillStyle = '#1f2a3c';
+        dome(c,0,H*0.02,W*(lv3 ? 0.20 : 0.17));
+        c.fillStyle = '#dff7ff';
+        poly(c,[[-W*0.10,-H*0.06],[0,-H*0.18],[W*0.10,-H*0.06],[0,H*0.08]]);
+        if(lv2) dome(c,0,-H*0.02,W*0.05);
+        if(lv3){ c.strokeStyle = '#ccf2ff'; c.lineWidth = Math.max(1.2, W*0.03); c.beginPath(); c.arc(0,0,W*0.22,0,Math.PI*2); c.stroke(); }
+        break;
+      case 'wall':
+        c.fillStyle = '#76879a';
+        c.fillRect(-W*(lv3 ? 0.34 : 0.28),-H*0.12,W*(lv3 ? 0.68 : 0.56),H*(lv2 ? 0.38 : 0.32));
+        c.fillStyle = '#445364';
+        c.fillRect(-W*0.24,-H*0.08,W*0.14,H*0.08);
+        c.fillRect(-W*0.04,-H*0.08,W*0.14,H*0.08);
+        c.fillRect(W*0.16,-H*0.08,W*0.08,H*0.08);
+        if(lv2) armorBands(-H*0.01, W*0.42, 2);
+        if(lv3){ c.fillStyle = '#a4b6ca'; c.fillRect(-W*0.32,-H*0.18,W*0.64,H*0.04); }
+        break;
+      case 'bunker':
+        c.fillStyle = '#8c99a8';
+        c.fillRect(-W*(lv3 ? 0.34 : 0.30),-H*0.10,W*(lv3 ? 0.68 : 0.60),H*(lv2 ? 0.40 : 0.34));
+        c.fillStyle = '#2b3138';
+        c.fillRect(-W*0.20,H*0.02,W*0.40,H*0.12);
+        if(lv2) c.fillRect(-W*0.26,-H*0.02,W*0.52,H*0.06);
+        c.fillStyle = '#f9d18e';
+        barrel(c,-W*0.04,-H*0.20,W*(lv3 ? 0.30 : 0.22),H*0.08);
+        if(lv3) barrel(c,-W*0.24,-H*0.08,W*0.14,H*0.05);
+        break;
+      case 'radar':
+        basePlate();
+        dome(c,0,0,W*(lv3 ? 0.14 : 0.12));
+        c.strokeStyle = '#d9f3ff';
+        c.beginPath(); c.arc(0,0,W*0.22,Math.PI*1.1,Math.PI*1.8); c.stroke();
+        c.beginPath(); c.arc(0,0,W*0.32,Math.PI*1.15,Math.PI*1.85); c.stroke();
+        if(lv2){ c.beginPath(); c.arc(0,0,W*0.42,Math.PI*1.2,Math.PI*1.9); c.stroke(); }
+        if(lv3){ c.fillStyle = '#e6fbff'; dome(c,0,-H*0.16,W*0.04); }
+        break;
+      case 'magnet':
+        basePlate();
+        c.lineWidth = Math.max(2,W*0.07);
+        c.strokeStyle = '#ffe2f3';
+        c.beginPath(); c.arc(0,-H*0.02,W*(lv3 ? 0.18 : 0.14),Math.PI*0.1,Math.PI*0.9); c.stroke();
+        c.fillStyle = '#fff';
+        c.fillRect(-W*0.10,H*0.05,W*0.05,H*0.08);
+        c.fillRect(W*0.05,H*0.05,W*0.05,H*0.08);
+        if(lv2) c.fillRect(-W*0.02,-H*0.14,W*0.04,H*0.12);
+        if(lv3) glowCore(0,-H*0.04,W*0.18,0.16);
+        break;
+      case 'fan':
+        basePlate();
+        dome(c,0,0,W*0.06);
+        for(let i=0;i<4;i++){ c.save(); c.rotate(i*Math.PI/2); poly(c,[[0,0],[W*(lv3 ? 0.24 : 0.20),-H*0.05],[W*0.10,H*0.04]]); c.restore(); }
+        if(lv2){ c.strokeStyle = '#d9f7ff'; c.lineWidth = Math.max(1.2,W*0.03); c.beginPath(); c.arc(0,0,W*0.22,0,Math.PI*2); c.stroke(); }
+        break;
+      case 'medic':
+        c.fillStyle = '#dff9e6';
+        c.fillRect(-W*(lv3 ? 0.22 : 0.18),-H*(lv3 ? 0.22 : 0.18),W*(lv3 ? 0.44 : 0.36),H*(lv3 ? 0.44 : 0.36));
+        c.fillStyle = accent;
+        c.fillRect(-W*0.04,-H*0.14,W*0.08,H*0.28);
+        c.fillRect(-W*0.14,-H*0.04,W*0.28,H*0.08);
+        if(lv2) sidePods(H*0.02, W*0.07, H*0.08);
+        if(lv3) glowCore(0,0,W*0.16,0.14);
+        break;
+      case 'bank':
+        c.fillStyle = '#3f4a2a';
+        c.fillRect(-W*(lv3 ? 0.30 : 0.25),-H*0.14,W*(lv3 ? 0.60 : 0.50),H*(lv2 ? 0.40 : 0.34));
+        c.fillStyle = '#ffd76a';
+        c.fillRect(-W*0.10,-H*0.02,W*0.20,H*0.12);
+        c.fillStyle = '#2b2d1e';
+        c.fillRect(-W*0.05,H*0.02,W*0.10,H*0.08);
+        if(lv2){ c.fillStyle = '#ffe79c'; c.fillRect(-W*0.18,-H*0.18,W*0.36,H*0.04); }
+        if(lv3){ c.fillStyle = '#ffe79c'; dome(c,0,-H*0.18,W*0.05); }
+        break;
+      case 'solar':
+        c.fillStyle = '#3d3f54';
+        c.fillRect(-W*0.26,H*0.04,W*0.52,H*0.08);
+        c.fillStyle = '#91b7ff';
+        c.fillRect(-W*0.22,-H*0.14,W*0.44,H*0.16);
+        c.fillStyle = '#ffd36a';
+        dome(c,0,-H*0.20,W*0.08);
+        if(lv2){ c.fillStyle = '#b9d3ff'; c.fillRect(-W*0.24,-H*0.20,W*0.48,H*0.03); }
+        if(lv3){ c.fillStyle = '#b9d3ff'; c.fillRect(-W*0.08,-H*0.28,W*0.16,H*0.05); }
+        break;
+      case 'poisonBarrel':
+        c.fillStyle = '#47603a';
+        c.fillRect(-W*0.16,-H*(lv3 ? 0.22 : 0.18),W*0.32,H*(lv3 ? 0.46 : 0.38));
+        c.fillStyle = '#d2ffd0';
+        c.fillRect(-W*0.16,-H*0.08,W*0.32,H*0.04);
+        c.fillRect(-W*0.04,-H*0.14,W*0.08,H*0.26);
+        if(lv2) c.fillRect(-W*0.10,-H*0.20,W*0.20,H*0.03);
+        if(lv3) dome(c,0,-H*0.24,W*0.05);
+        break;
+      case 'drone':
+        c.fillStyle = '#d9fbff';
+        dome(c,0,-H*0.02,W*(lv3 ? 0.14 : 0.12));
+        c.fillStyle = accent;
+        c.fillRect(-W*(lv3 ? 0.32 : 0.28),-H*0.06,W*(lv3 ? 0.64 : 0.56),H*0.05);
+        c.fillRect(-W*0.05,-H*(lv3 ? 0.26 : 0.22),W*0.10,H*(lv3 ? 0.48 : 0.40));
+        if(lv2){ c.fillRect(-W*0.20,-H*0.18,W*0.06,H*0.24); c.fillRect(W*0.14,-H*0.18,W*0.06,H*0.24); }
+        if(lv3){ c.fillStyle = '#effcff'; dome(c,0,-H*0.22,W*0.05); }
+        break;
+      case 'gauss':
+        basePlate(lv3 ? 1.10 : 1);
+        c.fillRect(-W*0.11,-H*0.04,W*0.22,H*0.18);
+        if(lv2) c.fillRect(-W*0.19,H*0.02,W*0.38,H*0.08);
+        c.fillStyle = '#223041';
+        c.fillRect(-W*0.14,-H*0.18,W*0.28,H*0.05);
+        if(lv3) c.fillRect(-W*0.20,-H*0.24,W*0.40,H*0.04);
+        c.fillStyle = steel;
+        barrel(c,-W*0.02,-H*0.12,W*(lv3 ? 0.38 : 0.31),H*0.055);
+        barrel(c,-W*0.02,-H*0.20,W*(lv2 ? 0.30 : 0.24),H*0.038);
+        if(lv3) glowCore(0, -H*0.03, W*0.07, 0.26);
+        break;
+      case 'reactor':
+        basePlate(lv3 ? 1.08 : 1);
+        c.fillStyle = '#2a3444';
+        c.beginPath();
+        c.moveTo(0,-H*0.24); c.lineTo(W*0.18,-H*0.12); c.lineTo(W*0.18,H*0.08); c.lineTo(0,H*0.20); c.lineTo(-W*0.18,H*0.08); c.lineTo(-W*0.18,-H*0.12); c.closePath();
+        c.fill();
+        c.fillStyle = accent;
+        glowCore(0,-H*0.02,W*0.13,lv3 ? 0.34 : 0.24);
+        c.beginPath(); c.arc(0,-H*0.02,W*0.10,0,Math.PI*2); c.fill();
+        c.fillStyle = '#f7fbff';
+        c.beginPath(); c.arc(0,-H*0.02,W*0.04,0,Math.PI*2); c.fill();
+        if(lv2){
+          c.strokeStyle = 'rgba(255,255,255,.40)';
+          c.lineWidth = Math.max(1.5, W*0.02);
+          c.beginPath(); c.arc(0,-H*0.02,W*0.17,0,Math.PI*2); c.stroke();
+        }
+        if(lv3){
+          c.strokeStyle = accent;
+          c.lineWidth = Math.max(1.5, W*0.018);
+          c.beginPath(); c.arc(0,-H*0.02,W*0.23,0,Math.PI*2); c.stroke();
+          sidePods(H*0.00, W*0.08, H*0.10);
+        }
+        break;
+      default:
+        basePlate();
+        dome(c,0,0,W*0.12);
+        if(lv2) armorBands(H*0.00, W*0.24, 2);
+        if(lv3) glowCore(0,0,W*0.16,0.16);
+        break;
     }
-    if(level > 1 && !isCard){ c.fillStyle = '#ffe68f'; c.font = 'bold 10px sans-serif'; c.fillText('L'+level, -W*0.30, -H*0.28); }
+
+    if(level > 1 && !isCard){
+      c.fillStyle = '#ffe68f';
+      c.font = 'bold 10px sans-serif';
+      c.fillText('L'+level, -W*0.30, -H*0.28);
+    }
+
     endShape(c);
   }
 
@@ -1788,9 +2329,86 @@ function onEnemyKilled(e){
     for(const e of state.enemies){
       drawMonsterBody(e);
       if(e.boss){ ctx.strokeStyle = 'rgba(255,255,255,.32)'; ctx.lineWidth = 3; ctx.strokeRect(e.x - e.size * 0.56, e.y - e.size * 0.74, e.size * 1.12, e.size * 1.38); }
-      ctx.fillStyle = 'rgba(0,0,0,.62)'; ctx.fillRect(e.x - e.size * 0.52, e.y - e.size * 1.02, e.size * 1.04, 6);
-      ctx.fillStyle = e.boss ? '#ff8e6f' : '#7dff88'; ctx.fillRect(e.x - e.size * 0.52, e.y - e.size * 1.02, e.size * 1.04 * Math.max(0, e.hp / e.maxHp), 6);
-      if(e.maxShield > 0){ ctx.fillStyle = 'rgba(120,170,255,.85)'; ctx.fillRect(e.x - e.size * 0.52, e.y - e.size * 1.18, e.size * 1.04 * Math.max(0, e.shield / e.maxShield), 4); }
+
+      const barW = e.size * 1.08;
+      const hpRatio = Math.max(0, Math.min(1, e.hp / e.maxHp));
+      const shieldRatio = e.maxShield > 0 ? Math.max(0, Math.min(1, e.shield / e.maxShield)) : 0;
+      const hpX = e.x - barW * 0.5;
+      const hpY = e.y - e.size * 1.06;
+      const hpH = e.boss ? 3.5 : 2.5;
+      const shieldH = e.boss ? 2.5 : 1.75;
+      const radius = hpH * 0.5;
+
+      // HP bar background: clearly translucent
+      ctx.save();
+      ctx.fillStyle = 'rgba(6,10,16,0.18)';
+      ctx.beginPath();
+      ctx.roundRect(hpX, hpY, barW, hpH, radius);
+      ctx.fill();
+
+      if(hpRatio > 0){
+        const hpGrad = ctx.createLinearGradient(hpX, hpY, hpX + barW, hpY);
+        if(e.boss){
+          hpGrad.addColorStop(0.00, 'rgba(255,236,188,0.40)');
+          hpGrad.addColorStop(0.22, 'rgba(255,194,118,0.72)');
+          hpGrad.addColorStop(0.60, 'rgba(255,126,88,0.90)');
+          hpGrad.addColorStop(1.00, 'rgba(255,78,78,0.96)');
+        }else{
+          hpGrad.addColorStop(0.00, 'rgba(208,255,236,0.34)');
+          hpGrad.addColorStop(0.24, 'rgba(122,255,204,0.68)');
+          hpGrad.addColorStop(0.60, 'rgba(74,224,168,0.86)');
+          hpGrad.addColorStop(1.00, 'rgba(44,188,132,0.94)');
+        }
+        ctx.fillStyle = hpGrad;
+        ctx.beginPath();
+        ctx.roundRect(hpX, hpY, Math.max(hpH, barW * hpRatio), hpH, radius);
+        ctx.fill();
+
+        // top sheen so the gradient reads more clearly
+        const hpShine = ctx.createLinearGradient(hpX, hpY, hpX, hpY + hpH);
+        hpShine.addColorStop(0.00, 'rgba(255,255,255,0.26)');
+        hpShine.addColorStop(0.55, 'rgba(255,255,255,0.08)');
+        hpShine.addColorStop(1.00, 'rgba(255,255,255,0.00)');
+        ctx.fillStyle = hpShine;
+        ctx.beginPath();
+        ctx.roundRect(hpX, hpY, Math.max(hpH, barW * hpRatio), hpH * 0.62, radius);
+        ctx.fill();
+      }
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.roundRect(hpX, hpY, barW, hpH, radius);
+      ctx.stroke();
+
+      if(e.maxShield > 0){
+        const shieldY = hpY - (e.boss ? 4.5 : 4);
+        const shieldRadius = shieldH * 0.5;
+
+        ctx.fillStyle = 'rgba(18,34,60,0.16)';
+        ctx.beginPath();
+        ctx.roundRect(hpX, shieldY, barW, shieldH, shieldRadius);
+        ctx.fill();
+
+        if(shieldRatio > 0){
+          const shieldGrad = ctx.createLinearGradient(hpX, shieldY, hpX + barW, shieldY);
+          shieldGrad.addColorStop(0.00, 'rgba(222,241,255,0.30)');
+          shieldGrad.addColorStop(0.35, 'rgba(160,214,255,0.52)');
+          shieldGrad.addColorStop(1.00, 'rgba(84,158,255,0.82)');
+          ctx.fillStyle = shieldGrad;
+          ctx.beginPath();
+          ctx.roundRect(hpX, shieldY, Math.max(shieldH, barW * shieldRatio), shieldH, shieldRadius);
+          ctx.fill();
+        }
+
+        ctx.strokeStyle = 'rgba(184,220,255,0.12)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.roundRect(hpX, shieldY, barW, shieldH, shieldRadius);
+        ctx.stroke();
+      }
+
+      ctx.restore();
     }
   }
 
@@ -1938,8 +2556,7 @@ function onEnemyKilled(e){
   function onPointer(ev){ ev.preventDefault(); const p = pointerPos(ev); const tile = tileAt(p.x,p.y); if(!tile) return; place(tile.col,tile.row); }
   function loop(ts){ const now = ts / 1000; const dt = Math.min(0.033, state.last ? now - state.last : 0.016); state.last = now; update(dt); draw(); requestAnimationFrame(loop); }
 
-  canvas.addEventListener('mousedown', onPointer);
-  canvas.addEventListener('touchstart', onPointer, {passive:false});
+  canvas.addEventListener('pointerdown', onPointer);
   for(const btn of document.querySelectorAll('button')){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
   }
@@ -1951,7 +2568,7 @@ function onEnemyKilled(e){
   modeInstallBtn.addEventListener('click', () => changeMode('install'));
   modePassiveBtn.addEventListener('click', () => changeMode('passive'));
   sliderWrap.addEventListener('scroll', () => { const page = Math.round(sliderWrap.scrollLeft / Math.max(1, sliderWrap.clientWidth)); if(page !== state.page){ state.page = Math.max(0, Math.min(pageCount()-1, page)); syncPageUI(); } }, {passive:true});
-  window.addEventListener('resize', () => { resize(); sliderWrap.scrollLeft = sliderWrap.clientWidth * state.page; });
+  window.addEventListener('resize', () => { resize(); sliderWrap.scrollLeft = sliderWrap.clientWidth * state.page; }, {passive:true});
 
   resetGame(); resize(); requestAnimationFrame(loop);
 })();
