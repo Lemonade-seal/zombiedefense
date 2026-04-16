@@ -206,6 +206,9 @@
   const controls = document.querySelector('.controls');
 
   const SUPABASE_CONFIG_KEY = 'zdf_supabase_config_v2';
+  const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
+  const BUILD_VERSION_KEY = 'zdf_build_version_v1';
+  const BUILD_VERSION = '2026-04-17-01';
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
     // 예: 'https://your-project.supabase.co'
@@ -248,6 +251,7 @@
   const supabaseStatus = document.getElementById('supabaseStatus');
   const loginIdInput = document.getElementById('loginIdInput');
   const loginPassInput = document.getElementById('loginPassInput');
+  const autoLoginCheck = document.getElementById('autoLoginCheck');
   const registerIdInput = document.getElementById('registerIdInput');
   const registerPassInput = document.getElementById('registerPassInput');
   const registerPassConfirmInput = document.getElementById('registerPassConfirmInput');
@@ -276,6 +280,10 @@
   const newGameBtn = document.getElementById('newGameBtn');
   const logoutBtn = document.getElementById('logoutBtn');
   const deleteAccountBtn = document.getElementById('deleteAccountBtn');
+  const updateOverlay = document.getElementById('updateOverlay');
+  const updateGaugeFill = document.getElementById('updateGaugeFill');
+  const updateGaugeText = document.getElementById('updateGaugeText');
+  const updateGaugeLabel = document.getElementById('updateGaugeLabel');
 
 
   const PAGE_SIZE = 4;
@@ -850,6 +858,8 @@ function syncStartToggleButton(){
   }else{
     startBtn.textContent = '시작';
   }
+  startBtn.classList.toggle('warn', startBtn.textContent === '정지');
+  startBtn.classList.toggle('primary', startBtn.textContent !== '정지');
 }
 
 
@@ -882,6 +892,7 @@ function injectRuntimeUi(){
     .authStack{display:grid;gap:12px}
     .authBox{padding:14px;border-radius:16px;background:#0d1520;border:1px solid #2a3648;display:grid;gap:10px}
     .authBoxTitle{font-size:13px;font-weight:900;letter-spacing:.08em;color:#cfe7ff}
+    .authChecks{display:grid;gap:8px}
     .authSummary{font-size:13px;line-height:1.6;color:#dbe8f8}
     .authSummary ul{margin:8px 0 0 18px;padding:0}
     .authButtons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -922,6 +933,7 @@ function injectRuntimeUi(){
     .menuCheck{display:grid;gap:8px;padding:12px;border-radius:14px;background:#0d1520;border:1px solid #2a3648}
     .menuCheck label{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.45;color:#dbe8f8;font-weight:700}
     .menuCheck input[type="checkbox"]{margin-top:2px;accent-color:#72b3ff}
+    .menuCheck.compact{padding:10px 12px;background:#0a111a}
     .policyModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:18px;z-index:60}
     .policyModal.open{display:flex}
     .registerPanel{position:relative;width:min(620px,100%);max-height:min(92vh,900px);overflow:auto;padding:18px;border-radius:22px;border:1px solid rgba(126,156,196,.28);background:linear-gradient(180deg,#111924,#1a2433);box-shadow:0 28px 90px rgba(0,0,0,.42)}
@@ -971,6 +983,14 @@ function injectRuntimeUi(){
     .chatComposer{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 12px;border-top:1px solid rgba(120,150,190,.10);background:transparent}
     .chatComposer input{width:100%;border:1px solid rgba(120,150,190,.18);background:rgba(7,12,18,.26);color:#eff5ff;border-radius:12px;padding:10px 12px;font:inherit;outline:none}
     .appStatusBadge{font-size:11px;color:#9cc4ff;font-weight:900}
+    .updateOverlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(6,10,15,.84);backdrop-filter:blur(10px);z-index:90;opacity:0;pointer-events:none;transition:opacity .2s ease}
+    .updateOverlay.open{opacity:1;pointer-events:auto}
+    .updateCard{width:min(520px,100%);padding:22px 18px;border-radius:22px;border:1px solid rgba(126,156,196,.28);background:linear-gradient(180deg,#111924,#1a2433);box-shadow:0 28px 90px rgba(0,0,0,.42);display:grid;gap:14px}
+    .updateTitle{font-size:22px;font-weight:900;line-height:1.1;color:#eef5ff}
+    .updateText{font-size:13px;line-height:1.55;color:#a8bdd7}
+    .updateGauge{height:12px;border-radius:999px;background:#0b121b;border:1px solid #243346;overflow:hidden}
+    .updateGaugeFill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#72b3ff,#4bd08a);transition:width .2s ease}
+    .updateGaugeMeta{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:12px;font-weight:900;color:#dbe8f8}
     @media (max-width:640px){
       #menuLayer,.policyModal{padding:12px}
       .menuPanel,.policyPanel{padding:14px;border-radius:18px}
@@ -1088,13 +1108,13 @@ function injectRuntimeUi(){
       <div id="authView" class="menuView">
         <div class="authStack">
           <div class="authBox">
-            <div class="authBoxTitle">좀비 막기게임 개요</div>
+            <div class="authBoxTitle">패치노트</div>
             <div class="authSummary">
-              모바일 화면에 맞춰 구성된 좀비 막기게임용 로그인 화면입니다.
+              최근 적용된 로그인/시작 화면 패치 내용입니다.
               <ul>
                 <li>회원가입 완료 시 로그인 화면으로 자동 이동</li>
-                <li>로그인 성공 후에만 시작 화면 표시</li>
-                <li>전장으로 이동한 뒤 상단 시작 버튼을 눌러 웨이브 시작</li>
+                <li>게임은 전장 진입 후 상단 시작 버튼을 눌러야 웨이브 시작</li>
+                <li>채팅/접속자/랭킹 표시를 모바일 화면에 맞게 정리</li>
                 <li>개인정보 정책은 팝업에서 거절/동의 선택</li>
               </ul>
             </div>
@@ -1109,6 +1129,11 @@ function injectRuntimeUi(){
             <label class="menuField">비밀번호
               <input id="loginPassInput" type="password" maxlength="72" placeholder="비밀번호 입력" autocomplete="current-password" />
             </label>
+            <div class="authChecks">
+              <div class="menuCheck compact">
+                <label><input id="autoLoginCheck" type="checkbox" /> <span>자동로그인 사용</span></label>
+              </div>
+            </div>
             <div class="authButtons">
               <button id="authLoginBtn" class="primary">로그인</button>
               <button id="authRegisterOpenBtn">회원가입</button>
@@ -1285,6 +1310,22 @@ grant execute on function public.delete_my_account() to authenticated;</pre>
   `;
   app.appendChild(layer);
 
+  const updateOverlay = document.createElement('div');
+  updateOverlay.id = 'updateOverlay';
+  updateOverlay.className = 'updateOverlay';
+  updateOverlay.innerHTML = `
+    <div class="updateCard">
+      <div class="updateTitle">업데이트중입니다.</div>
+      <div id="updateGaugeLabel" class="updateText">새 버전을 적용하고 있습니다. 잠시만 기다려주세요.</div>
+      <div class="updateGauge"><div id="updateGaugeFill" class="updateGaugeFill"></div></div>
+      <div class="updateGaugeMeta">
+        <span>파일 적용</span>
+        <span id="updateGaugeText">0%</span>
+      </div>
+    </div>
+  `;
+  app.appendChild(updateOverlay);
+
   const registerModal = document.createElement('div');
   registerModal.id = 'registerModal';
   registerModal.className = 'policyModal';
@@ -1435,6 +1476,62 @@ function isValidLoginId(value=''){
 
 function normalizeRecoveryEmail(value=''){
   return String(value || '').trim().toLowerCase();
+}
+
+function readAutoLoginPreference(){
+  try{
+    return localStorage.getItem(AUTO_LOGIN_PREF_KEY) === '1';
+  } catch(err){
+    return false;
+  }
+}
+
+function writeAutoLoginPreference(enabled){
+  try{
+    localStorage.setItem(AUTO_LOGIN_PREF_KEY, enabled ? '1' : '0');
+  } catch(err){}
+}
+
+function syncAutoLoginCheckbox(){
+  if(autoLoginCheck) autoLoginCheck.checked = readAutoLoginPreference();
+}
+
+function delay(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function playUpdateOverlay(force=false){
+  if(!updateOverlay || !updateGaugeFill || !updateGaugeText || !updateGaugeLabel) return false;
+  let previous = '';
+  try{
+    previous = localStorage.getItem(BUILD_VERSION_KEY) || '';
+  } catch(err){}
+  const changed = !!previous && previous !== BUILD_VERSION;
+  if(!force && !changed){
+    try{ localStorage.setItem(BUILD_VERSION_KEY, BUILD_VERSION); } catch(err){}
+    return false;
+  }
+  updateGaugeFill.style.width = '0%';
+  updateGaugeText.textContent = '0%';
+  updateGaugeLabel.textContent = changed ? '새 버전을 적용하고 있습니다. 저장된 데이터를 확인하는 중입니다.' : '업데이트 표시를 준비하는 중입니다.';
+  updateOverlay.classList.add('open');
+  const steps = [
+    [12, '파일 변경 사항을 확인하는 중입니다.'],
+    [36, '화면 구성을 다시 불러오는 중입니다.'],
+    [68, '로그인 화면과 전장 UI를 정리하는 중입니다.'],
+    [88, '최신 설정을 적용하는 중입니다.'],
+    [100, '업데이트가 완료되었습니다. 로그인 화면으로 이동합니다.'],
+  ];
+  for(const [value, label] of steps){
+    updateGaugeLabel.textContent = label;
+    updateGaugeFill.style.width = value + '%';
+    updateGaugeText.textContent = value + '%';
+    await delay(value >= 100 ? 420 : 260);
+  }
+  try{ localStorage.setItem(BUILD_VERSION_KEY, BUILD_VERSION); } catch(err){}
+  await delay(220);
+  updateOverlay.classList.remove('open');
+  return true;
 }
 
 function readLoginEmailMap(){
@@ -2128,12 +2225,12 @@ function renderMenu(view='auto'){
     if(menuEyebrow) menuEyebrow.textContent = 'LOGIN · ONLINE ACCOUNT';
     menuTitle.textContent = '좀비 막기게임 로그인';
     menuSubtitle.textContent = '로그인 전에는 로그인 화면과 회원가입만 표시됩니다. 로그인 성공 후에만 시작 화면이 열립니다.';
-    authNotice.textContent = '회원가입이 완료되면 로그인 화면으로 자동 이동합니다. 로그인 성공 후에만 시작 화면으로 이동합니다.';
+    authNotice.textContent = '회원가입이 완료되면 로그인 화면으로 자동 이동합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 시작 화면을 열 수 있습니다.';
     return;
   }
   const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
   if(menuEyebrow) menuEyebrow.textContent = 'START SCREEN · ONLINE ACCOUNT';
-  menuTitle.textContent = '시작 화면';
+  menuTitle.textContent = '게임 메뉴';
   menuSubtitle.textContent = '로그인에 성공했습니다. 아래에서 전장 이동 또는 계정 관리를 선택할 수 있습니다.';
   homeUserName.textContent = profile.name;
   void refreshLeaderboard();
@@ -2179,6 +2276,7 @@ function validateRegisterForm(){
 async function loginOnlineUser(){
   const loginValue = String(loginIdInput.value || '').trim();
   const pass = String(loginPassInput.value || '');
+  const autoLoginEnabled = !!(autoLoginCheck && autoLoginCheck.checked);
   if(state.currentUser && !loginValue && !pass){
     state.authFlowUnlocked = true;
     updateAuthGate();
@@ -2216,6 +2314,7 @@ async function loginOnlineUser(){
       showBanner('로그인 실패', 1.2);
       return;
     }
+    writeAutoLoginPreference(autoLoginEnabled);
     await applyOnlineUser(user);
     state.authFlowUnlocked = true;
     updateAuthGate();
@@ -2475,8 +2574,18 @@ async function hydrateOnlineSession(){
   return true;
 }
 
-async function hydrateSession(){
+async function hydrateSession(options={}){
+  const forceAuth = !!options.forceAuth;
   const ok = await hydrateOnlineSession();
+  const autoLoginEnabled = readAutoLoginPreference();
+  if(ok && autoLoginEnabled && !forceAuth){
+    state.authFlowUnlocked = true;
+    updateAuthGate();
+    updateUserBadge();
+    openMenu('home');
+    setAuthStatus('자동로그인으로 시작 화면을 열었습니다.', true);
+    return;
+  }
   state.authFlowUnlocked = false;
   updateAuthGate();
   updateUserBadge();
@@ -4447,11 +4556,16 @@ function onEnemyKilled(e){
   async function boot(){
     resetGame({skipProfileSave:true});
     resize();
+    syncAutoLoginCheckbox();
+    if(autoLoginCheck){
+      autoLoginCheck.addEventListener('change', () => writeAutoLoginPreference(!!autoLoginCheck.checked));
+    }
     initSupabaseClient(false);
     renderLeaderboard([]);
     renderPresence([], 0);
     renderChatMessages([]);
-    await hydrateSession();
+    const updated = await playUpdateOverlay(false);
+    await hydrateSession({ forceAuth: updated });
     requestAnimationFrame(loop);
   }
 
