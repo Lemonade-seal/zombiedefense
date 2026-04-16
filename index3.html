@@ -177,6 +177,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 (() => {
   const canvas = document.getElementById('game');
@@ -201,6 +202,74 @@
   const sellBtn = document.getElementById('sellBtn');
   const modeInstallBtn = document.getElementById('modeInstallBtn');
   const modePassiveBtn = document.getElementById('modePassiveBtn');
+  const app = document.getElementById('app');
+  const controls = document.querySelector('.controls');
+
+  const SUPABASE_CONFIG_KEY = 'zdf_supabase_config_v2';
+  const SUPABASE_BOOT_CONFIG = Object.freeze({
+    // 예: 'https://your-project.supabase.co'
+    url: '',
+    // 예: 'eyJ...'
+    anonKey: '',
+  });
+  const SUPABASE_TABLE = 'game_profiles';
+  const SUPABASE_PRESENCE_TABLE = 'game_presence';
+  const SUPABASE_CHAT_TABLE = 'game_chat_messages';
+
+  injectRuntimeUi();
+
+  const userBadge = document.getElementById('userBadge');
+  const menuBtn = document.getElementById('menuBtn');
+  const rankToggleBtn = document.getElementById('rankToggleBtn');
+  const onlineUsersBtn = document.getElementById('onlineUsersBtn');
+  const chatToggleBtn = document.getElementById('chatToggleBtn');
+  const leaderboardPanel = document.getElementById('leaderboardPanel');
+  const presencePanel = document.getElementById('presencePanel');
+  const chatPanel = document.getElementById('chatPanel');
+  const chatCollapseBtn = document.getElementById('chatCollapseBtn');
+  const leaderboardRefreshBtn = document.getElementById('leaderboardRefreshBtn');
+  const presenceRefreshBtn = document.getElementById('presenceRefreshBtn');
+  const floatingLeaderboardList = document.getElementById('floatingLeaderboardList');
+  const presenceCount = document.getElementById('presenceCount');
+  const presenceList = document.getElementById('presenceList');
+  const chatMessages = document.getElementById('chatMessages');
+  const chatInput = document.getElementById('chatInput');
+  const chatSendBtn = document.getElementById('chatSendBtn');
+  const appOnlineStatus = document.getElementById('appOnlineStatus');
+
+  const menuLayer = document.getElementById('menuLayer');
+  const menuCloseBtn = document.getElementById('menuCloseBtn');
+  const authView = document.getElementById('authView');
+  const homeView = document.getElementById('homeView');
+  const supabaseUrlInput = document.getElementById('supabaseUrlInput');
+  const supabaseAnonKeyInput = document.getElementById('supabaseAnonKeyInput');
+  const supabaseStatus = document.getElementById('supabaseStatus');
+  const loginIdInput = document.getElementById('loginIdInput');
+  const loginPassInput = document.getElementById('loginPassInput');
+  const registerIdInput = document.getElementById('registerIdInput');
+  const registerPassInput = document.getElementById('registerPassInput');
+  const registerNameInput = document.getElementById('registerNameInput');
+  const registerEmailInput = document.getElementById('registerEmailInput');
+  const authRegisterOpenBtn = document.getElementById('authRegisterOpenBtn');
+  const registerModal = document.getElementById('registerModal');
+  const registerCloseBtn = document.getElementById('registerCloseBtn');
+  const authPolicyViewBtn = document.getElementById('authPolicyViewBtn');
+  const policyModal = document.getElementById('policyModal');
+  const policyCloseBtn = document.getElementById('policyCloseBtn');
+  const policyRejectBtn = document.getElementById('policyRejectBtn');
+  const policyAgreeBtn = document.getElementById('policyAgreeBtn');
+  const policyConsentCheck = document.getElementById('policyConsentCheck');
+  const authLoginBtn = document.getElementById('authLoginBtn');
+  const authRegisterBtn = document.getElementById('authRegisterBtn');
+  const authStatus = document.getElementById('authStatus');
+  const menuTitle = document.getElementById('menuTitle');
+  const menuSubtitle = document.getElementById('menuSubtitle');
+  const authNotice = document.getElementById('authNotice');
+  const homeUserName = document.getElementById('homeUserName');
+  const leaderboardList = document.getElementById('leaderboardList');
+  const newGameBtn = document.getElementById('newGameBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+
 
   const PAGE_SIZE = 4;
 
@@ -350,7 +419,29 @@ const state = {
   supportCache:new Map(), supportDirty:true,
   field:{left:0, top:0, width:0, height:0, cols:5, rows:9, baseY:0, tileW:0, tileH:0},
 };
-
+  state.menuOpen = true;
+  state.currentUser = null;
+  state.profileCache = null;
+  state.supabase = null;
+  state.supabaseReady = false;
+  state.supabaseUrl = '';
+  state.supabaseAnonKey = '';
+  state.remoteSyncInFlight = false;
+  state.remoteSyncQueued = false;
+  state.remoteQueuedProfile = null;
+  state.remoteQueuedContext = null;
+  state.leaderboard = [];
+  state.presence = [];
+  state.onlineCount = 0;
+  state.pendingRegisterForm = null;
+  state.presenceTimer = null;
+  state.leaderboardTimer = null;
+  state.chatTimer = null;
+  state.realtimeChannel = null;
+  state.chatOpen = false;
+  state.chatLastRendered = '';
+  state.rankPanelOpen = false;
+  state.presencePanelOpen = false;
 
 
 const installMap = Object.fromEntries(INSTALLS.map(i => [i.key, i]));
@@ -726,10 +817,1266 @@ function updateHud(){
   waveVal.textContent = String(state.wave);
   killVal.textContent = String(state.kills);
   bossVal.textContent = `${Math.min(10, Math.floor(state.wave/10))}/10`;
+  updateUserBadge();
   refreshActionBar();
 }
 
 
+function injectRuntimeUi(){
+  const runtimeStyle = document.createElement('style');
+  runtimeStyle.textContent = `
+    .hudUserTools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .userBadge{display:flex;align-items:center;min-height:34px;padding:0 10px;border-radius:10px;border:1px solid #2b3648;background:#111823;color:#dbe8f8;font-size:11px;font-weight:900;letter-spacing:.04em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+    #menuLayer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:30}
+    #menuLayer.open{opacity:1;pointer-events:auto}
+    #menuLayer .menuBackdrop{position:absolute;inset:0;background:rgba(5,8,12,.72);backdrop-filter:blur(8px)}
+    .menuPanel{position:relative;width:min(760px,100%);max-height:min(92vh,960px);overflow:auto;padding:18px;border-radius:22px;border:1px solid rgba(126,156,196,.28);background:linear-gradient(180deg,#111924,#1a2433);box-shadow:0 28px 90px rgba(0,0,0,.42);display:grid;gap:14px}
+    .menuHeader{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    .menuEyebrow{font-size:11px;font-weight:900;letter-spacing:.12em;color:#8fb8ff}
+    .menuHeader h1,.policyPanel h2{margin:4px 0 0;font-size:28px;line-height:1.05}
+    .menuSubtitle{margin:8px 0 0;font-size:13px;line-height:1.5;color:#a3b6d2}
+    .menuView{display:grid;gap:12px}
+    .menuNotice{padding:12px 14px;border-radius:14px;background:#0d1520;border:1px solid #2a3648;font-size:12px;line-height:1.45;color:#d5e3f6}
+    .menuField{display:grid;gap:6px;font-size:12px;font-weight:800;color:#dce8f8}
+    .menuField input,.menuField textarea{width:100%;border:1px solid #2a3648;background:#0a111a;color:#eff5ff;border-radius:12px;padding:12px 13px;font:inherit;outline:none}
+    .menuField input:focus,.menuField textarea:focus,.chatComposer input:focus{border-color:#72b3ff;box-shadow:0 0 0 3px rgba(114,179,255,.16)}
+    .menuTwoCol{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .menuSection{display:grid;gap:10px;padding:14px;border-radius:16px;background:#0d1520;border:1px solid #2a3648}
+    .menuSectionTitle{font-size:13px;font-weight:900;letter-spacing:.08em;color:#cfe7ff}
+    .menuActions,.menuActionsTri,.menuGridBtns{display:grid;gap:8px}
+    .menuActions{grid-template-columns:1fr}
+    .menuActionsTri{grid-template-columns:1fr 1fr}
+    .menuGridBtns{grid-template-columns:1fr 1fr}
+    .menuStatus{font-size:12px;line-height:1.5;color:#ffcf8e;min-height:18px}
+    .menuStatus.ok{color:#9ff0bd}
+    .menuStatus.dim{color:#8ea4c1}
+    .menuConfig{padding:12px;border-radius:16px;background:#0d1520;border:1px solid #2a3648;display:grid;gap:10px}
+    .menuConfigTitle{font-size:12px;color:#9fd0ff;font-weight:900;letter-spacing:.08em}
+    .menuHint{font-size:12px;line-height:1.45;color:#93a9c5}
+    details.menuHelp{border:1px solid #2a3648;border-radius:14px;background:#0a111a;padding:10px 12px}
+    details.menuHelp summary{cursor:pointer;font-size:12px;font-weight:900;color:#cfe7ff}
+    .sqlBox{margin:10px 0 0;padding:12px;border-radius:12px;background:#060b11;border:1px solid #1c2b3c;color:#c0d8f3;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+    .profileHero{padding:14px;border-radius:16px;background:linear-gradient(180deg,#0f1723,#131f2c);border:1px solid #2a3a50}
+    .profileHero .name{font-size:22px;font-weight:900;line-height:1.1;height:auto;display:block}
+    .profileHero .sub{margin-top:8px;font-size:13px;color:#9fb0cb}
+    .profileStats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+    .profileStat{padding:12px;border-radius:14px;background:#0d1520;border:1px solid #2a3648}
+    .profileStat .k{font-size:11px;color:#8ea4c1;font-weight:800;letter-spacing:.08em}
+    .profileStat .v{margin-top:6px;font-size:17px;font-weight:900;line-height:1.1;word-break:break-word}
+    .menuFoot{font-size:12px;color:#8da2be;line-height:1.45}
+    .leaderboardBox,.presenceBox{padding:12px;border-radius:16px;background:#0d1520;border:1px solid #2a3648;display:grid;gap:8px}
+    .leaderboardHead{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12px;font-weight:900;color:#cfe7ff}
+    .leaderboardList{display:grid;gap:6px}
+    .leaderItem{display:grid;grid-template-columns:42px 1fr auto auto;gap:8px;align-items:center;padding:10px 12px;border-radius:12px;background:#0a111a;border:1px solid #202f41;font-size:12px}
+    .leaderRank{font-weight:900;color:#ffe191}
+    .leaderName{font-weight:800;color:#f4f8ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .leaderMeta{color:#9ab0ca;font-weight:800}
+    .menuCheck{display:grid;gap:8px;padding:12px;border-radius:14px;background:#0d1520;border:1px solid #2a3648}
+    .menuCheck label{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.45;color:#dbe8f8;font-weight:700}
+    .menuCheck input[type="checkbox"]{margin-top:2px;accent-color:#72b3ff}
+    .policyModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:18px;z-index:60}
+    .policyModal.open{display:flex}
+    .registerPanel{position:relative;width:min(620px,100%);max-height:min(92vh,900px);overflow:auto;padding:18px;border-radius:22px;border:1px solid rgba(126,156,196,.28);background:linear-gradient(180deg,#111924,#1a2433);box-shadow:0 28px 90px rgba(0,0,0,.42)}
+    .policyBackdrop{position:absolute;inset:0;background:rgba(4,7,12,.72);backdrop-filter:blur(8px)}
+    .policyPanel{position:relative;width:min(760px,100%);max-height:min(92vh,900px);overflow:auto;padding:18px;border-radius:22px;border:1px solid rgba(126,156,196,.28);background:linear-gradient(180deg,#111924,#1a2433);box-shadow:0 28px 90px rgba(0,0,0,.42)}
+    .policyMeta{font-size:12px;color:#98aec9;font-weight:800}
+    .policyBody{display:grid;gap:10px;margin-top:14px;font-size:13px;line-height:1.6;color:#e0e9f5}
+    .policyBody section{padding:12px;border-radius:14px;background:#0d1520;border:1px solid #2a3648}
+    .policyBody h3{margin:0 0 8px;font-size:14px;color:#cfe7ff}
+    .policyBody ul{margin:8px 0 0 18px;padding:0}
+    .policyActions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+    .isHidden{display:none !important}
+    .fieldPanels{position:absolute;top:12px;right:12px;display:grid;gap:10px;z-index:12;pointer-events:none;max-width:min(380px,calc(100% - 24px))}
+    .fieldPanel{pointer-events:auto;display:none;background:rgba(10,16,24,.94);border:1px solid rgba(120,150,190,.24);border-radius:16px;box-shadow:0 16px 38px rgba(0,0,0,.28);backdrop-filter:blur(6px)}
+    .fieldPanel.open{display:grid}
+    .fieldPanelHead{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(120,150,190,.16);font-size:12px;font-weight:900;color:#dfeaff}
+    .fieldPanelBody{padding:10px 12px;display:grid;gap:8px;max-height:min(55vh,420px);overflow:auto}
+    .presenceCount{font-size:24px;font-weight:900;color:#eff6ff}
+    .presenceList{display:grid;gap:6px}
+    .presenceItem{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:12px;background:#0a111a;border:1px solid #202f41;font-size:12px}
+    .presenceItem strong{color:#eef5ff}
+    .chatMessages{display:grid;gap:6px;max-height:min(42vh,320px);overflow:auto;padding-right:2px}
+    .chatItem{padding:8px 10px;border-radius:12px;background:#0a111a;border:1px solid #202f41;font-size:12px;line-height:1.45}
+    .chatItemHead{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;font-weight:900;color:#dfeaff}
+    .chatBody{color:#e8f0fb;white-space:pre-wrap;word-break:break-word}
+    .chatComposer{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 12px;border-top:1px solid rgba(120,150,190,.16)}
+    .chatComposer input{width:100%;border:1px solid #2a3648;background:#0a111a;color:#eff5ff;border-radius:12px;padding:10px 12px;font:inherit;outline:none}
+    .appStatusBadge{font-size:11px;color:#9cc4ff;font-weight:900}
+    @media (max-width:640px){
+      #menuLayer,.policyModal{padding:12px}
+      .menuPanel,.policyPanel{padding:14px;border-radius:18px}
+      .menuHeader h1,.policyPanel h2{font-size:22px}
+      .menuTwoCol,.menuGridBtns,.profileStats{grid-template-columns:1fr}
+      .hudUserTools{width:100%}
+      .userBadge,#menuBtn,#rankToggleBtn,#onlineUsersBtn,#chatToggleBtn{flex:1 1 calc(50% - 6px)}
+      .leaderItem{grid-template-columns:36px 1fr}
+      .leaderItem .leaderMeta{grid-column:2}
+      .fieldPanels{left:12px;right:12px;top:12px;max-width:none}
+      .chatComposer{grid-template-columns:1fr}
+    }
+  `;
+  document.head.appendChild(runtimeStyle);
+
+  const userTools = document.createElement('div');
+  userTools.className = 'hudUserTools';
+  userTools.innerHTML = `
+    <div id="userBadge" class="userBadge">로그인 필요</div>
+    <div id="appOnlineStatus" class="appStatusBadge">오프라인</div>
+    <button id="menuBtn" class="small">메뉴</button>
+    <button id="rankToggleBtn" class="small">랭킹</button>
+    <button id="onlineUsersBtn" class="small">접속자</button>
+    <button id="chatToggleBtn" class="small">채팅</button>
+  `;
+  controls.insertBefore(userTools, controls.firstChild);
+
+  const panels = document.createElement('div');
+  panels.className = 'fieldPanels';
+  panels.innerHTML = `
+    <div id="leaderboardPanel" class="fieldPanel">
+      <div class="fieldPanelHead">
+        <span>실시간 랭킹</span>
+        <button id="leaderboardRefreshBtn" class="small">새로고침</button>
+      </div>
+      <div class="fieldPanelBody">
+        <div id="floatingLeaderboardList" class="leaderboardList">
+          <div class="menuHint">로그인 후 랭킹을 불러옵니다.</div>
+        </div>
+      </div>
+    </div>
+    <div id="presencePanel" class="fieldPanel">
+      <div class="fieldPanelHead">
+        <span>접속자 현황</span>
+        <button id="presenceRefreshBtn" class="small">새로고침</button>
+      </div>
+      <div class="fieldPanelBody">
+        <div id="presenceCount" class="presenceCount">-</div>
+        <div id="presenceList" class="presenceList">
+          <div class="menuHint">로그인 후 접속자 수를 확인할 수 있습니다.</div>
+        </div>
+      </div>
+    </div>
+    <div id="chatPanel" class="fieldPanel">
+      <div class="fieldPanelHead">
+        <span>전체 채팅</span>
+        <button id="chatCollapseBtn" class="small">접기</button>
+      </div>
+      <div class="fieldPanelBody">
+        <div id="chatMessages" class="chatMessages">
+          <div class="menuHint">채팅은 기본으로 접혀 있습니다. 열면 최근 메시지를 불러옵니다.</div>
+        </div>
+      </div>
+      <div class="chatComposer">
+        <input id="chatInput" type="text" maxlength="140" placeholder="메시지 입력 후 전송" />
+        <button id="chatSendBtn" class="small primary">전송</button>
+      </div>
+    </div>
+  `;
+  fieldWrap.appendChild(panels);
+
+  const layer = document.createElement('div');
+  layer.id = 'menuLayer';
+  layer.innerHTML = `
+    <div class="menuBackdrop"></div>
+    <div class="menuPanel">
+      <div class="menuHeader">
+        <div>
+          <div class="menuEyebrow">START MENU · ONLINE ACCOUNT</div>
+          <h1 id="menuTitle">ZOMBIE DEFENSE</h1>
+          <p id="menuSubtitle" class="menuSubtitle">시작 화면은 로그인 전용입니다. 로그인 후 새 게임을 시작하세요.</p>
+        </div>
+        <button id="menuCloseBtn" class="small">닫기</button>
+      </div>
+
+      <div id="authView" class="menuView">
+        <div id="authNotice" class="menuNotice">아이디와 비밀번호로 로그인합니다. 회원가입은 아래 버튼을 눌러 별도 창에서 진행합니다.</div>
+
+        <div class="menuSection">
+          <div class="menuSectionTitle">로그인</div>
+          <label class="menuField">아이디
+            <input id="loginIdInput" type="text" maxlength="24" placeholder="영문 소문자, 숫자, . _ - 조합 4~24자" autocomplete="username" autocapitalize="off" spellcheck="false" />
+          </label>
+          <label class="menuField">비밀번호
+            <input id="loginPassInput" type="password" maxlength="72" placeholder="비밀번호 입력" autocomplete="current-password" />
+          </label>
+          <div class="menuActions">
+            <button id="authLoginBtn" class="primary">로그인</button>
+            <button id="authRegisterOpenBtn">회원가입</button>
+          </div>
+        </div>
+
+        <details class="menuHelp">
+          <summary>온라인 연결 상태</summary>
+          <div class="menuConfig">
+            <div class="menuConfigTitle">SUPABASE 자동 연결</div>
+            <input id="supabaseUrlInput" type="hidden" />
+            <textarea id="supabaseAnonKeyInput" hidden></textarea>
+            <div id="supabaseStatus" class="menuStatus dim">이 파일 안의 SUPABASE_BOOT_CONFIG 값이 채워지면 실행 즉시 자동 연결됩니다.</div>
+            <div class="menuHint">브라우저가 열리면 저장된 세션을 자동 복원하고, 랭킹·접속자·채팅은 자동 동기화됩니다.</div>
+            <details class="menuHelp">
+              <summary>Supabase SQL 설정 보기</summary>
+              <pre class="sqlBox">create table if not exists public.game_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  login_id text not null unique,
+  recovery_email text not null,
+  display_name text not null default 'PLAYER',
+  best_wave integer not null default 0,
+  best_kills integer not null default 0,
+  privacy_agreed_at timestamptz,
+  privacy_version text not null default '2026-04-16',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.game_presence (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  login_id text not null,
+  display_name text not null default 'PLAYER',
+  last_seen timestamptz not null default now()
+);
+
+create table if not exists public.game_chat_messages (
+  id bigint generated by default as identity primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  login_id text not null,
+  display_name text not null,
+  message text not null check (char_length(message) between 1 and 140),
+  created_at timestamptz not null default now()
+);
+
+alter table public.game_profiles enable row level security;
+alter table public.game_presence enable row level security;
+alter table public.game_chat_messages enable row level security;
+
+drop policy if exists "profiles_select_auth" on public.game_profiles;
+drop policy if exists "profiles_insert_own" on public.game_profiles;
+drop policy if exists "profiles_update_own" on public.game_profiles;
+drop policy if exists "presence_select_auth" on public.game_presence;
+drop policy if exists "presence_upsert_own" on public.game_presence;
+drop policy if exists "presence_update_own" on public.game_presence;
+drop policy if exists "presence_delete_own" on public.game_presence;
+drop policy if exists "chat_select_auth" on public.game_chat_messages;
+drop policy if exists "chat_insert_auth" on public.game_chat_messages;
+
+create policy "profiles_select_auth"
+on public.game_profiles
+for select
+to authenticated
+using (true);
+
+create policy "profiles_insert_own"
+on public.game_profiles
+for insert
+to authenticated
+with check ((select auth.uid()) = user_id);
+
+create policy "profiles_update_own"
+on public.game_profiles
+for update
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+create policy "presence_select_auth"
+on public.game_presence
+for select
+to authenticated
+using (true);
+
+create policy "presence_upsert_own"
+on public.game_presence
+for insert
+to authenticated
+with check ((select auth.uid()) = user_id);
+
+create policy "presence_update_own"
+on public.game_presence
+for update
+to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+create policy "presence_delete_own"
+on public.game_presence
+for delete
+to authenticated
+using ((select auth.uid()) = user_id);
+
+create policy "chat_select_auth"
+on public.game_chat_messages
+for select
+to authenticated
+using (true);
+
+create policy "chat_insert_auth"
+on public.game_chat_messages
+for insert
+to authenticated
+with check ((select auth.uid()) = user_id);
+
+create index if not exists game_profiles_rank_idx
+on public.game_profiles (best_wave desc, best_kills desc);
+
+create index if not exists game_presence_seen_idx
+on public.game_presence (last_seen desc);
+
+create index if not exists game_chat_messages_created_idx
+on public.game_chat_messages (created_at desc);</pre>
+            </details>
+          </div>
+        </details>
+
+        <div id="authStatus" class="menuStatus">온라인 계정으로만 동작합니다.</div>
+      </div>
+
+      <div id="homeView" class="menuView" hidden>
+        <div class="profileHero">
+          <div id="homeUserName" class="name">-</div>
+          <div class="sub">랭킹, 접속자 수, 채팅은 게임 화면 상단 버튼에서 열 수 있습니다.</div>
+        </div>
+        <div class="menuGridBtns">
+          <button id="newGameBtn" class="primary">새 게임 시작</button>
+          <button id="logoutBtn">로그아웃</button>
+        </div>
+        <div class="leaderboardBox">
+          <div class="leaderboardHead">
+            <span>온라인 랭킹</span>
+            <span>최고 웨이브 · 최고 킬</span>
+          </div>
+          <div id="leaderboardList" class="leaderboardList">
+            <div class="menuHint">로그인 후 랭킹을 불러옵니다.</div>
+          </div>
+        </div>
+        <div class="menuFoot">새 게임을 누르면 현재 전장이 초기화되고 처음부터 시작합니다. 계정은 유지되며 최고 기록은 서버에 남습니다.</div>
+      </div>
+    </div>
+  `;
+  app.appendChild(layer);
+
+  const registerModal = document.createElement('div');
+  registerModal.id = 'registerModal';
+  registerModal.className = 'policyModal';
+  registerModal.innerHTML = `
+    <div class="policyBackdrop"></div>
+    <div class="registerPanel">
+      <div class="menuHeader">
+        <div>
+          <div class="menuEyebrow">CREATE ACCOUNT</div>
+          <h2>회원가입</h2>
+          <div class="policyMeta">아이디 · 비밀번호 · 닉네임 · 이메일 주소 입력</div>
+        </div>
+        <button id="registerCloseBtn" class="small">닫기</button>
+      </div>
+      <div class="menuView" style="margin-top:14px;">
+        <div class="menuTwoCol">
+          <label class="menuField">아이디
+            <input id="registerIdInput" type="text" maxlength="24" placeholder="로그인에 사용할 아이디" autocomplete="off" autocapitalize="off" spellcheck="false" />
+          </label>
+          <label class="menuField">비밀번호
+            <input id="registerPassInput" type="password" maxlength="72" placeholder="6자 이상 권장" autocomplete="new-password" />
+          </label>
+        </div>
+        <div class="menuTwoCol">
+          <label class="menuField">닉네임
+            <input id="registerNameInput" type="text" maxlength="16" placeholder="게임 내 표시 이름" autocomplete="nickname" />
+          </label>
+          <label class="menuField">이메일 주소
+            <input id="registerEmailInput" type="email" maxlength="120" placeholder="나중에 임시 비밀번호 발송용" autocomplete="email" autocapitalize="off" spellcheck="false" />
+          </label>
+        </div>
+        <div class="menuCheck">
+          <button id="authPolicyViewBtn" type="button" class="small">개인정보 처리방침 보기</button>
+          <div class="menuHint">회원가입을 누르면 개인정보 처리방침 창이 열립니다. 그 창 안의 체크박스를 선택하고 <strong>동의하기</strong>를 눌러야 가입이 진행됩니다.</div>
+        </div>
+        <div class="menuActions">
+          <button id="authRegisterBtn" class="primary">회원가입</button>
+        </div>
+      </div>
+    </div>
+  `;
+  app.appendChild(registerModal);
+
+  const policy = document.createElement('div');
+  policy.id = 'policyModal';
+  policy.className = 'policyModal';
+  policy.innerHTML = `
+    <div class="policyBackdrop"></div>
+    <div class="policyPanel">
+      <div class="menuHeader">
+        <div>
+          <div class="menuEyebrow">PRIVACY POLICY</div>
+          <h2>개인정보 처리방침</h2>
+          <div class="policyMeta">버전 2026-04-16</div>
+        </div>
+        <button id="policyCloseBtn" class="small">닫기</button>
+      </div>
+      <div class="policyBody">
+        <section>
+          <h3>1. 수집 항목</h3>
+          <div>회원가입, 로그인, 랭킹, 접속자 수, 채팅 제공을 위해 다음 정보를 저장할 수 있습니다.</div>
+          <ul>
+            <li>아이디</li>
+            <li>비밀번호 인증용 내부 계정 정보</li>
+            <li>닉네임</li>
+            <li>이메일 주소(향후 임시 비밀번호 발송용)</li>
+            <li>최고 웨이브, 최고 킬 수</li>
+            <li>개인정보 처리방침 동의 시각 및 버전</li>
+            <li>접속 현황 및 채팅 메시지</li>
+          </ul>
+        </section>
+        <section>
+          <h3>2. 이용 목적</h3>
+          <div>계정 식별, 로그인 유지, 최고 기록 저장, 온라인 랭킹, 현재 접속자 수 표시, 전체 채팅 제공, 비밀번호 재설정 준비를 위한 최소 범위 정보만 사용합니다.</div>
+        </section>
+        <section>
+          <h3>3. 보관 방식</h3>
+          <div>본 버전은 Supabase를 사용합니다. 로그인용 아이디는 내부 인증용 별칭으로 처리되고, 사용자가 입력한 이메일 주소는 복구 이메일로 별도 저장됩니다.</div>
+        </section>
+        <section>
+          <h3>4. 이용자 선택</h3>
+          <div>회원가입 진행 시 체크박스를 선택한 뒤, 이 창 아래의 <strong>거절하기</strong> 또는 <strong>동의하기</strong> 버튼으로 최종 의사를 표시해야 합니다. 거절하면 가입이 취소됩니다.</div>
+        </section>
+      </div>
+      <div class="menuCheck" style="margin-top:14px;">
+        <label><input id="policyConsentCheck" type="checkbox" /> <span>위 내용을 읽었고 개인정보 처리방침에 동의합니다.</span></label>
+      </div>
+      <div class="policyActions">
+        <button id="policyRejectBtn" class="warn">거절하기</button>
+        <button id="policyAgreeBtn" class="primary">동의하기</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(policy);
+}
+
+function safeJsonParse(raw, fallback){
+  try{
+    return raw ? JSON.parse(raw) : fallback;
+  } catch(err){
+    return fallback;
+  }
+}
+
+function getSupabaseConfig(){
+  const bootConfig = {
+    url: String(SUPABASE_BOOT_CONFIG?.url || '').trim(),
+    anonKey: String(SUPABASE_BOOT_CONFIG?.anonKey || '').trim(),
+  };
+  if(bootConfig.url && bootConfig.anonKey) return bootConfig;
+  const stored = safeJsonParse(localStorage.getItem(SUPABASE_CONFIG_KEY), null);
+  return {
+    url: String(stored?.url || '').trim(),
+    anonKey: String(stored?.anonKey || '').trim(),
+  };
+}
+
+function saveSupabaseConfig(config){
+  localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify({
+    url: String(config?.url || '').trim(),
+    anonKey: String(config?.anonKey || '').trim(),
+  }));
+}
+
+function normalizeUsername(name=''){
+  return name.trim().replace(/\s+/g, ' ').slice(0, 16);
+}
+
+function normalizeLoginId(value=''){
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 24);
+}
+
+function isValidLoginId(value=''){
+  return /^[a-z0-9._-]{4,24}$/.test(normalizeLoginId(value));
+}
+
+function normalizeRecoveryEmail(value=''){
+  return String(value || '').trim().toLowerCase();
+}
+
+function isValidRecoveryEmail(value=''){
+  const email = normalizeRecoveryEmail(value);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 120;
+}
+
+function loginIdToEmailAlias(loginId=''){
+  const clean = normalizeLoginId(loginId);
+  return clean ? `${clean}@zdf-id.local` : '';
+}
+
+function emailAliasToLoginId(email=''){
+  const clean = String(email || '').trim().toLowerCase();
+  const local = clean.includes('@') ? clean.split('@')[0] : clean;
+  return normalizeLoginId(local);
+}
+
+function privacyPolicyVersion(){
+  return '2026-04-16';
+}
+
+function ensureProfileShape(profile, fallbackName=''){
+  const updatedAt = profile?.updatedAt || profile?.lastPlayedAt || '';
+  return {
+    loginId: normalizeLoginId(profile?.loginId || ''),
+    name: normalizeUsername(profile?.name || fallbackName || 'PLAYER') || 'PLAYER',
+    recoveryEmail: normalizeRecoveryEmail(profile?.recoveryEmail || profile?.email || ''),
+    bestWave: Number(profile?.bestWave || 0),
+    bestKills: Number(profile?.bestKills || 0),
+    privacyAgreedAt: profile?.privacyAgreedAt || '',
+    privacyVersion: profile?.privacyVersion || privacyPolicyVersion(),
+    lastPlayedAt: profile?.lastPlayedAt || updatedAt || '',
+    createdAt: profile?.createdAt || Date.now(),
+    updatedAt: updatedAt || Date.now(),
+    provider: 'supabase',
+  };
+}
+
+function deriveDisplayName(loginId='', fallback='PLAYER'){
+  const candidate = normalizeUsername(loginId || fallback);
+  return candidate || 'PLAYER';
+}
+
+function defaultProfileForUser(user=state.currentUser){
+  return ensureProfileShape({
+    loginId: user?.loginId || emailAliasToLoginId(user?.authEmail || ''),
+    name: user?.name || deriveDisplayName(user?.loginId || '', 'PLAYER'),
+    recoveryEmail: user?.recoveryEmail || '',
+    bestWave: 0,
+    bestKills: 0,
+    privacyAgreedAt: user?.privacyAgreedAt || '',
+    privacyVersion: privacyPolicyVersion(),
+  }, user?.name || 'PLAYER');
+}
+
+function getCurrentProfile(){
+  if(!state.currentUser) return null;
+  if(state.profileCache) return ensureProfileShape(state.profileCache, state.currentUser.name || 'PLAYER');
+  return defaultProfileForUser(state.currentUser);
+}
+
+function currentUserLabel(){
+  if(!state.currentUser) return '로그인 필요';
+  const loginId = state.currentUser.loginId ? `@${state.currentUser.loginId}` : '';
+  return `ONLINE · ${state.currentUser.name}${loginId ? ' · ' + loginId : ''}`;
+}
+
+function updateUserBadge(){
+  if(userBadge) userBadge.textContent = currentUserLabel();
+  if(appOnlineStatus) appOnlineStatus.textContent = state.currentUser ? '온라인 연결' : '오프라인';
+}
+
+function formatStamp(iso=''){
+  if(!iso) return '없음';
+  const d = new Date(iso);
+  if(Number.isNaN(d.getTime())) return '없음';
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${yy}.${mm}.${dd} ${hh}:${mi}`;
+}
+
+function formatPolicyConsent(profile){
+  if(!profile?.privacyAgreedAt) return '미동의';
+  return `${privacyPolicyVersion()} · ${formatStamp(profile.privacyAgreedAt)}`;
+}
+
+function openPolicyModal(){
+  if(policyConsentCheck) policyConsentCheck.checked = false;
+  if(policyModal) policyModal.classList.add('open');
+}
+
+function closePolicyModal(){
+  if(policyModal) policyModal.classList.remove('open');
+}
+
+function openRegisterModal(){
+  if(registerModal) registerModal.classList.add('open');
+}
+
+function closeRegisterModal(){
+  if(registerModal) registerModal.classList.remove('open');
+}
+
+function setAuthStatus(text, ok=false){
+  authStatus.textContent = text;
+  authStatus.classList.toggle('ok', !!ok);
+}
+
+function setSupabaseStatus(text, ok=false, dim=false){
+  if(!supabaseStatus) return;
+  supabaseStatus.textContent = text;
+  supabaseStatus.classList.toggle('ok', !!ok);
+  supabaseStatus.classList.toggle('dim', !!dim && !ok);
+}
+
+function escapeHtml(value=''){
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderLeaderboard(items){
+  const list = Array.isArray(items) ? items : [];
+  const html = list.length
+    ? list.map((row, index) => `
+      <div class="leaderItem">
+        <div class="leaderRank">#${index + 1}</div>
+        <div class="leaderName">${escapeHtml(row.display_name || 'PLAYER')}</div>
+        <div class="leaderMeta">WAVE ${Number(row.best_wave || 0)}</div>
+        <div class="leaderMeta">KILL ${Number(row.best_kills || 0)}</div>
+      </div>
+    `).join('')
+    : `<div class="menuHint">로그인 후 랭킹을 불러옵니다.</div>`;
+  if(leaderboardList) leaderboardList.innerHTML = html;
+  if(floatingLeaderboardList) floatingLeaderboardList.innerHTML = html;
+}
+
+function renderPresence(items, count){
+  const rows = Array.isArray(items) ? items : [];
+  const total = Number(count || 0);
+  state.onlineCount = total;
+  if(presenceCount) presenceCount.textContent = total ? `${total}명` : '-';
+  if(onlineUsersBtn) onlineUsersBtn.textContent = total ? `접속 ${total}` : '접속자';
+  if(!presenceList) return;
+  if(!rows.length){
+    presenceList.innerHTML = `<div class="menuHint">현재 접속 중인 사용자가 없거나 아직 불러오지 못했습니다.</div>`;
+    return;
+  }
+  presenceList.innerHTML = rows.map((row) => `
+    <div class="presenceItem">
+      <strong>${escapeHtml(row.display_name || 'PLAYER')}</strong>
+      <span>@${escapeHtml(row.login_id || '')}</span>
+    </div>
+  `).join('');
+}
+
+function renderChatMessages(items){
+  if(!chatMessages) return;
+  const list = Array.isArray(items) ? items : [];
+  if(!list.length){
+    chatMessages.innerHTML = `<div class="menuHint">아직 채팅이 없습니다.</div>`;
+    state.chatLastRendered = '';
+    return;
+  }
+  const html = list.map((row) => `
+    <div class="chatItem">
+      <div class="chatItemHead">
+        <span>${escapeHtml(row.display_name || 'PLAYER')} · @${escapeHtml(row.login_id || '')}</span>
+        <span>${formatStamp(row.created_at || '')}</span>
+      </div>
+      <div class="chatBody">${escapeHtml(row.message || '')}</div>
+    </div>
+  `).join('');
+  if(state.chatLastRendered !== html){
+    chatMessages.innerHTML = html;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    state.chatLastRendered = html;
+  }
+}
+
+function setPanelOpen(panel, button, open){
+  if(!panel) return;
+  panel.classList.toggle('open', !!open);
+  if(button) button.classList.toggle('primary', !!open);
+}
+
+function toggleLeaderboardPanel(force){
+  const next = typeof force === 'boolean' ? force : !state.rankPanelOpen;
+  state.rankPanelOpen = next;
+  setPanelOpen(leaderboardPanel, rankToggleBtn, next);
+  if(next) void refreshLeaderboard();
+}
+
+function togglePresencePanel(force){
+  const next = typeof force === 'boolean' ? force : !state.presencePanelOpen;
+  state.presencePanelOpen = next;
+  setPanelOpen(presencePanel, onlineUsersBtn, next);
+  if(next) void refreshPresence();
+}
+
+function toggleChatPanel(force){
+  const next = typeof force === 'boolean' ? force : !state.chatOpen;
+  state.chatOpen = next;
+  setPanelOpen(chatPanel, chatToggleBtn, next);
+  if(next) void refreshChatMessages();
+}
+
+function closeSidePanels(){
+  toggleLeaderboardPanel(false);
+  togglePresencePanel(false);
+  toggleChatPanel(false);
+}
+
+function initSupabaseClient(force=false){
+  const config = getSupabaseConfig();
+  if(supabaseUrlInput) supabaseUrlInput.value = config.url || '';
+  if(supabaseAnonKeyInput) supabaseAnonKeyInput.value = config.anonKey || '';
+  if(!config.url || !config.anonKey){
+    state.supabase = null;
+    state.supabaseReady = false;
+    state.supabaseUrl = '';
+    state.supabaseAnonKey = '';
+    setSupabaseStatus('자동 연결용 SUPABASE_BOOT_CONFIG 값이 비어 있습니다. 이 HTML 파일 안에 URL과 anon key를 넣어야 즉시 동기화됩니다.', false, true);
+    return false;
+  }
+  if(!window.supabase || typeof window.supabase.createClient !== 'function'){
+    state.supabase = null;
+    state.supabaseReady = false;
+    setSupabaseStatus('Supabase 브라우저 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.');
+    return false;
+  }
+  if(!force && state.supabaseReady && state.supabaseUrl === config.url && state.supabaseAnonKey === config.anonKey){
+    return true;
+  }
+  try{
+    state.supabase = window.supabase.createClient(config.url, config.anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    });
+    state.supabaseReady = true;
+    state.supabaseUrl = config.url;
+    state.supabaseAnonKey = config.anonKey;
+    setSupabaseStatus('Supabase 자동 연결 준비 완료. 저장된 세션이 있으면 즉시 복원합니다.', true);
+    return true;
+  } catch(err){
+    state.supabase = null;
+    state.supabaseReady = false;
+    setSupabaseStatus(`Supabase 초기화 실패: ${err?.message || err}`);
+    return false;
+  }
+}
+
+function currentOnlineContext(){
+  return state.currentUser && state.currentUser.provider === 'supabase'
+    ? {
+        userId: state.currentUser.userId,
+        authEmail: state.currentUser.authEmail || '',
+        recoveryEmail: state.currentUser.recoveryEmail || '',
+        name: state.currentUser.name || 'PLAYER',
+        loginId: state.currentUser.loginId || '',
+        privacyAgreedAt: state.currentUser.privacyAgreedAt || '',
+      }
+    : null;
+}
+
+function profileToSupabaseRow(profile, context=currentOnlineContext()){
+  if(!context?.userId) return null;
+  return {
+    user_id: context.userId,
+    login_id: normalizeLoginId(profile.loginId || context.loginId || emailAliasToLoginId(context.authEmail || '')),
+    recovery_email: normalizeRecoveryEmail(profile.recoveryEmail || context.recoveryEmail || ''),
+    display_name: profile.name || context.name || deriveDisplayName(context.loginId || '', 'PLAYER'),
+    best_wave: Number(profile.bestWave || 0),
+    best_kills: Number(profile.bestKills || 0),
+    privacy_agreed_at: profile.privacyAgreedAt || context.privacyAgreedAt || null,
+    privacy_version: profile.privacyVersion || privacyPolicyVersion(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function supabaseRowToProfile(row, context=currentOnlineContext()){
+  return ensureProfileShape({
+    loginId: row?.login_id || context?.loginId || emailAliasToLoginId(context?.authEmail || ''),
+    name: row?.display_name || context?.name || deriveDisplayName(context?.loginId || '', 'PLAYER'),
+    recoveryEmail: row?.recovery_email || context?.recoveryEmail || '',
+    bestWave: Number(row?.best_wave || 0),
+    bestKills: Number(row?.best_kills || 0),
+    privacyAgreedAt: row?.privacy_agreed_at || context?.privacyAgreedAt || '',
+    privacyVersion: row?.privacy_version || privacyPolicyVersion(),
+    lastPlayedAt: row?.updated_at || '',
+    createdAt: row?.created_at || Date.now(),
+    updatedAt: row?.updated_at || Date.now(),
+  }, context?.name || 'PLAYER');
+}
+
+async function pushProfileToSupabase(profile, context=currentOnlineContext(), silent=true){
+  if(!state.supabaseReady || !state.supabase || !context?.userId) return false;
+  const payload = profileToSupabaseRow(profile, context);
+  if(!payload) return false;
+  const { data, error } = await state.supabase
+    .from(SUPABASE_TABLE)
+    .upsert(payload, { onConflict: 'user_id' })
+    .select('user_id,login_id,recovery_email,display_name,best_wave,best_kills,privacy_agreed_at,privacy_version,created_at,updated_at')
+    .single();
+  if(error){
+    if(!silent){
+      setAuthStatus(`온라인 저장 실패: ${error.message}`);
+      showBanner('온라인 저장 실패', 1.5);
+    }
+    return false;
+  }
+  state.profileCache = supabaseRowToProfile(data, context);
+  if(state.currentUser){
+    state.currentUser.name = state.profileCache.name;
+    state.currentUser.loginId = state.profileCache.loginId;
+    state.currentUser.recoveryEmail = state.profileCache.recoveryEmail;
+    state.currentUser.privacyAgreedAt = state.profileCache.privacyAgreedAt;
+    updateUserBadge();
+  }
+  return true;
+}
+
+function queueRemoteProfileSync(profile){
+  if(!state.currentUser || state.currentUser.provider !== 'supabase') return;
+  state.profileCache = ensureProfileShape(profile, state.currentUser.name);
+  state.remoteQueuedProfile = JSON.parse(JSON.stringify(state.profileCache));
+  state.remoteQueuedContext = {...currentOnlineContext()};
+  if(state.remoteSyncInFlight){
+    state.remoteSyncQueued = true;
+    return;
+  }
+  void drainRemoteProfileQueue();
+}
+
+async function drainRemoteProfileQueue(){
+  if(state.remoteSyncInFlight || !state.remoteQueuedProfile || !state.remoteQueuedContext?.userId) return false;
+  state.remoteSyncInFlight = true;
+  const profile = state.remoteQueuedProfile;
+  const context = state.remoteQueuedContext;
+  state.remoteQueuedProfile = null;
+  state.remoteQueuedContext = null;
+  state.remoteSyncQueued = false;
+  const ok = await pushProfileToSupabase(profile, context, true);
+  state.remoteSyncInFlight = false;
+  if(state.remoteSyncQueued || state.remoteQueuedProfile) return drainRemoteProfileQueue();
+  return ok;
+}
+
+async function fetchOnlineProfile(ensureRow=false){
+  if(!state.supabaseReady || !state.supabase || !state.currentUser?.userId) return null;
+  const context = currentOnlineContext();
+  const { data, error } = await state.supabase
+    .from(SUPABASE_TABLE)
+    .select('user_id,login_id,recovery_email,display_name,best_wave,best_kills,privacy_agreed_at,privacy_version,created_at,updated_at')
+    .eq('user_id', state.currentUser.userId)
+    .maybeSingle();
+  if(error){
+    setAuthStatus(`프로필 테이블을 읽지 못했습니다: ${error.message}`);
+    return defaultProfileForUser(state.currentUser);
+  }
+  if(!data){
+    const base = defaultProfileForUser(state.currentUser);
+    state.profileCache = base;
+    if(ensureRow) await pushProfileToSupabase(base, context, true);
+    return base;
+  }
+  const profile = supabaseRowToProfile(data, context);
+  state.profileCache = profile;
+  state.currentUser.name = profile.name;
+  state.currentUser.loginId = profile.loginId;
+  state.currentUser.recoveryEmail = profile.recoveryEmail;
+  state.currentUser.privacyAgreedAt = profile.privacyAgreedAt;
+  updateUserBadge();
+  return profile;
+}
+
+async function refreshLeaderboard(){
+  if(!(state.currentUser && state.currentUser.provider === 'supabase' && state.supabaseReady && state.supabase)){
+    renderLeaderboard([]);
+    return;
+  }
+  const { data, error } = await state.supabase
+    .from(SUPABASE_TABLE)
+    .select('display_name,best_wave,best_kills,updated_at')
+    .order('best_wave', { ascending: false })
+    .order('best_kills', { ascending: false })
+    .limit(10);
+  if(error){
+    renderLeaderboard([]);
+    if(floatingLeaderboardList) floatingLeaderboardList.innerHTML = `<div class="menuHint">랭킹을 불러오지 못했습니다. SQL 정책을 확인하세요.</div>`;
+    if(leaderboardList) leaderboardList.innerHTML = `<div class="menuHint">랭킹을 불러오지 못했습니다. SQL 정책을 확인하세요.</div>`;
+    return;
+  }
+  state.leaderboard = Array.isArray(data) ? data : [];
+  renderLeaderboard(state.leaderboard);
+}
+
+async function touchPresence(remove=false){
+  if(!(state.currentUser && state.supabaseReady && state.supabase)) return false;
+  const ctx = currentOnlineContext();
+  if(!ctx?.userId) return false;
+  if(remove){
+    await state.supabase.from(SUPABASE_PRESENCE_TABLE).delete().eq('user_id', ctx.userId);
+    return true;
+  }
+  const payload = {
+    user_id: ctx.userId,
+    login_id: ctx.loginId || emailAliasToLoginId(ctx.authEmail || ''),
+    display_name: ctx.name || 'PLAYER',
+    last_seen: new Date().toISOString(),
+  };
+  const { error } = await state.supabase.from(SUPABASE_PRESENCE_TABLE).upsert(payload, { onConflict: 'user_id' });
+  return !error;
+}
+
+async function refreshPresence(){
+  if(!(state.currentUser && state.supabaseReady && state.supabase)){
+    renderPresence([], 0);
+    return;
+  }
+  const cutoff = new Date(Date.now() - 90000).toISOString();
+  const { data, error, count } = await state.supabase
+    .from(SUPABASE_PRESENCE_TABLE)
+    .select('display_name,login_id,last_seen', { count: 'exact' })
+    .gt('last_seen', cutoff)
+    .order('last_seen', { ascending: false })
+    .limit(20);
+  if(error){
+    renderPresence([], 0);
+    return;
+  }
+  state.presence = Array.isArray(data) ? data : [];
+  renderPresence(state.presence, count || state.presence.length);
+}
+
+async function refreshChatMessages(){
+  if(!(state.currentUser && state.supabaseReady && state.supabase)){
+    renderChatMessages([]);
+    return;
+  }
+  const { data, error } = await state.supabase
+    .from(SUPABASE_CHAT_TABLE)
+    .select('display_name,login_id,message,created_at')
+    .order('created_at', { ascending: false })
+    .limit(40);
+  if(error){
+    chatMessages.innerHTML = `<div class="menuHint">채팅을 불러오지 못했습니다.</div>`;
+    return;
+  }
+  const items = (Array.isArray(data) ? data : []).slice().reverse();
+  renderChatMessages(items);
+}
+
+async function sendChatMessage(){
+  if(!(state.currentUser && state.supabaseReady && state.supabase)){
+    setAuthStatus('로그인 후 채팅을 사용할 수 있습니다.');
+    openMenu('auth');
+    return;
+  }
+  const message = String(chatInput.value || '').trim();
+  if(!message) return;
+  const ctx = currentOnlineContext();
+  const payload = {
+    user_id: ctx.userId,
+    login_id: ctx.loginId,
+    display_name: ctx.name,
+    message: message.slice(0, 140),
+  };
+  const { error } = await state.supabase.from(SUPABASE_CHAT_TABLE).insert(payload);
+  if(error){
+    showBanner('채팅 전송 실패', 1.2);
+    return;
+  }
+  chatInput.value = '';
+  await refreshChatMessages();
+}
+
+function startRealtimeSubscriptions(){
+  stopRealtimeSubscriptions();
+  if(!(state.currentUser && state.supabaseReady && state.supabase)) return;
+  state.realtimeChannel = state.supabase
+    .channel(`zdf-live-${state.currentUser.userId}`)
+    .on('postgres_changes', { event:'*', schema:'public', table:SUPABASE_TABLE }, () => { void refreshLeaderboard(); })
+    .on('postgres_changes', { event:'*', schema:'public', table:SUPABASE_PRESENCE_TABLE }, () => { void refreshPresence(); })
+    .on('postgres_changes', { event:'*', schema:'public', table:SUPABASE_CHAT_TABLE }, () => { void refreshChatMessages(); })
+    .subscribe();
+}
+
+function stopRealtimeSubscriptions(){
+  if(!(state.realtimeChannel && state.supabase)) return;
+  state.supabase.removeChannel(state.realtimeChannel);
+  state.realtimeChannel = null;
+}
+
+function startOnlineLoops(){
+  stopOnlineLoops();
+  if(!(state.currentUser && state.supabaseReady && state.supabase)) return;
+  void touchPresence(false);
+  void refreshPresence();
+  void refreshLeaderboard();
+  void refreshChatMessages();
+  startRealtimeSubscriptions();
+  state.presenceTimer = setInterval(() => { void touchPresence(false); void refreshPresence(); }, 30000);
+  state.leaderboardTimer = setInterval(() => { void refreshLeaderboard(); }, 45000);
+  state.chatTimer = setInterval(() => { void refreshChatMessages(); }, 5000);
+}
+
+function stopOnlineLoops(){
+  stopRealtimeSubscriptions();
+  if(state.presenceTimer){ clearInterval(state.presenceTimer); state.presenceTimer = null; }
+  if(state.leaderboardTimer){ clearInterval(state.leaderboardTimer); state.leaderboardTimer = null; }
+  if(state.chatTimer){ clearInterval(state.chatTimer); state.chatTimer = null; }
+}
+
+function persistProfile(profile){
+  const shaped = ensureProfileShape(profile, state.currentUser?.name || 'PLAYER');
+  state.profileCache = shaped;
+  if(state.currentUser?.provider === 'supabase') queueRemoteProfileSync(shaped);
+}
+
+function openMenu(view='auto'){
+  state.menuOpen = true;
+  menuLayer.classList.add('open');
+  if(view === 'auth') closeRegisterModal();
+  renderMenu(view);
+}
+
+function closeMenu(){
+  if(!state.currentUser) return;
+  state.menuOpen = false;
+  menuLayer.classList.remove('open');
+  closeRegisterModal();
+  setAuthStatus('온라인 계정과 최고 기록만 저장됩니다.');
+}
+
+function renderMenu(view='auto'){
+  const forceAuth = view === 'auth' || !state.currentUser;
+  authView.hidden = !forceAuth;
+  homeView.hidden = forceAuth;
+  menuCloseBtn.style.display = forceAuth ? 'none' : '';
+  if(forceAuth){
+    menuTitle.textContent = 'ONLINE LOGIN';
+    menuSubtitle.textContent = '아이디와 비밀번호로 로그인합니다. 회원가입은 버튼을 눌러 별도 창에서 진행합니다. 서버 연결은 실행 즉시 자동으로 시도됩니다.';
+    authNotice.textContent = '시작 화면은 로그인 전용입니다. 아이디/비밀번호를 입력하고, 회원가입 버튼을 눌러 가입 창을 여세요. Supabase 설정값이 파일 안에 들어 있으면 자동 연결됩니다.';
+    return;
+  }
+  const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
+  menuTitle.textContent = 'PLAYER MENU · ONLINE';
+  menuSubtitle.textContent = '온라인 계정이 연결된 상태입니다. 새 게임을 시작하거나 로그아웃할 수 있습니다.';
+  homeUserName.textContent = profile.name;
+  void refreshLeaderboard();
+  void refreshPresence();
+}
+
+async function applyOnlineUser(user, preferredName='', preferredRecoveryEmail=''){
+  const meta = user?.user_metadata || {};
+  const loginId = normalizeLoginId(meta.login_id || emailAliasToLoginId(user?.email || ''));
+  const name = normalizeUsername(preferredName || meta.display_name || '') || deriveDisplayName(loginId || '', 'PLAYER');
+  const recoveryEmail = normalizeRecoveryEmail(preferredRecoveryEmail || meta.recovery_email || '');
+  state.currentUser = {
+    key: user.id,
+    userId: user.id,
+    loginId,
+    provider: 'supabase',
+    authEmail: user.email || loginIdToEmailAlias(loginId),
+    recoveryEmail,
+    privacyAgreedAt: meta.privacy_agreed_at || '',
+    name,
+  };
+  state.profileCache = defaultProfileForUser(state.currentUser);
+  updateUserBadge();
+  await fetchOnlineProfile(true);
+  startOnlineLoops();
+  renderMenu('home');
+}
+
+function validateRegisterForm(){
+  const loginId = normalizeLoginId(registerIdInput.value || '');
+  const password = String(registerPassInput.value || '');
+  const displayName = normalizeUsername(registerNameInput.value || '');
+  const recoveryEmail = normalizeRecoveryEmail(registerEmailInput.value || '');
+  if(!isValidLoginId(loginId)){ setAuthStatus('회원가입 아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); return null; }
+  if(password.length < 6){ setAuthStatus('회원가입 비밀번호는 6자 이상으로 입력하세요.'); return null; }
+  if(displayName.length < 2){ setAuthStatus('닉네임은 2자 이상이어야 합니다.'); return null; }
+  if(!isValidRecoveryEmail(recoveryEmail)){ setAuthStatus('유효한 이메일 주소를 입력하세요.'); return null; }
+  return { loginId, password, displayName, recoveryEmail };
+}
+
+async function loginOnlineUser(){
+  const loginId = normalizeLoginId(loginIdInput.value || '');
+  const pass = String(loginPassInput.value || '');
+  const authEmail = loginIdToEmailAlias(loginId);
+  if(!initSupabaseClient()) return;
+  if(!isValidLoginId(loginId)){ setAuthStatus('아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); return; }
+  if(pass.length < 4){ setAuthStatus('비밀번호를 입력하세요.'); return; }
+  const { data, error } = await state.supabase.auth.signInWithPassword({ email: authEmail, password: pass });
+  if(error){ setAuthStatus(`로그인 실패: ${error.message}`); return; }
+  const user = data?.user || data?.session?.user;
+  if(!user){ setAuthStatus('세션을 만들지 못했습니다.'); return; }
+  await applyOnlineUser(user);
+  loginPassInput.value = '';
+  setAuthStatus(`@${loginId} 계정으로 로그인했습니다.`, true);
+  openMenu('home');
+  showBanner('온라인 로그인', 1.2);
+}
+
+async function registerOnlineUser(form){
+  if(!initSupabaseClient()) return;
+  const agreedAt = new Date().toISOString();
+  const loginId = form.loginId;
+  const authEmail = loginIdToEmailAlias(loginId);
+  const { data, error } = await state.supabase.auth.signUp({
+    email: authEmail,
+    password: form.password,
+    options: {
+      data: {
+        login_id: loginId,
+        display_name: form.displayName,
+        recovery_email: form.recoveryEmail,
+        privacy_version: privacyPolicyVersion(),
+        privacy_agreed_at: agreedAt,
+      },
+    },
+  });
+  if(error){ setAuthStatus(`회원가입 실패: ${error.message}`); return; }
+  const user = data?.user || data?.session?.user;
+  if(user && data?.session){
+    await applyOnlineUser(user, form.displayName, form.recoveryEmail);
+    const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
+    profile.loginId = form.loginId;
+    profile.name = form.displayName;
+    profile.recoveryEmail = form.recoveryEmail;
+    profile.privacyAgreedAt = agreedAt;
+    profile.privacyVersion = privacyPolicyVersion();
+    persistProfile(profile);
+    registerIdInput.value = '';
+    registerPassInput.value = '';
+    registerNameInput.value = '';
+    registerEmailInput.value = '';
+    setAuthStatus('회원가입과 로그인에 성공했습니다.', true);
+    closeRegisterModal();
+    openMenu('home');
+    showBanner('온라인 계정 생성', 1.2);
+    return;
+  }
+  setAuthStatus('회원가입 요청이 접수되었습니다. Email Confirm이 켜져 있으면 별도 인증 후 로그인해야 할 수 있습니다.', true);
+  closeRegisterModal();
+}
+
+function requestRegisterApproval(){
+  const form = validateRegisterForm();
+  if(!form) return;
+  state.pendingRegisterForm = form;
+  openPolicyModal();
+  setAuthStatus('정책 창 안의 체크박스를 선택한 뒤 동의하기를 누르면 회원가입이 완료됩니다.');
+}
+
+async function approvePolicyAndRegister(){
+  if(!state.pendingRegisterForm){
+    closePolicyModal();
+    return;
+  }
+  if(policyConsentCheck && !policyConsentCheck.checked){
+    setAuthStatus('정책 창 안의 체크박스를 선택해야 가입을 진행할 수 있습니다.');
+    return;
+  }
+  const form = state.pendingRegisterForm;
+  state.pendingRegisterForm = null;
+  closePolicyModal();
+  await registerOnlineUser(form);
+}
+
+function rejectPolicyAgreement(){
+  state.pendingRegisterForm = null;
+  if(policyConsentCheck) policyConsentCheck.checked = false;
+  closePolicyModal();
+  setAuthStatus('개인정보 처리방침에 동의하지 않아 회원가입을 취소했습니다.');
+}
+
+async function logoutCurrentUser(){
+  if(!state.currentUser) return;
+  persistUserStats();
+  if(state.supabaseReady && state.supabase){
+    const snapshot = getCurrentProfile();
+    const context = currentOnlineContext();
+    if(snapshot && context) await pushProfileToSupabase(snapshot, context, true);
+    await touchPresence(true);
+    await state.supabase.auth.signOut();
+  }
+  stopOnlineLoops();
+  state.currentUser = null;
+  state.profileCache = null;
+  updateUserBadge();
+  renderLeaderboard([]);
+  renderPresence([], 0);
+  renderChatMessages([]);
+  closeSidePanels();
+  loginPassInput.value = '';
+  openMenu('auth');
+  setAuthStatus('로그아웃되었습니다.');
+}
+
+function saveUserProgress(){
+  persistUserStats();
+}
+
+function persistUserStats(){
+  if(!state.currentUser) return;
+  const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
+  profile.loginId = state.currentUser.loginId || profile.loginId || '';
+  profile.name = state.currentUser.name || profile.name;
+  profile.recoveryEmail = state.currentUser.recoveryEmail || profile.recoveryEmail || '';
+  profile.bestWave = Math.max(profile.bestWave || 0, state.wave || 0);
+  profile.bestKills = Math.max(profile.bestKills || 0, state.kills || 0);
+  profile.lastPlayedAt = new Date().toISOString();
+  profile.updatedAt = profile.lastPlayedAt;
+  persistProfile(profile);
+  renderMenu('home');
+}
+
+function beginNewGame(){
+  persistUserStats();
+  resetGame({skipProfileSave:true});
+  closeMenu();
+  startGame();
+}
+
+async function hydrateOnlineSession(){
+  if(!initSupabaseClient()) return false;
+  const { data, error } = await state.supabase.auth.getSession();
+  if(error){
+    setSupabaseStatus(`세션 확인 실패: ${error.message}`);
+    return false;
+  }
+  const user = data?.session?.user;
+  if(!user) return false;
+  await applyOnlineUser(user);
+  return true;
+}
+
+async function hydrateSession(){
+  const ok = await hydrateOnlineSession();
+  updateUserBadge();
+  openMenu(ok ? 'home' : 'auth');
+}
+
+async function saveSupabaseSettingsFromInputs(){
+  const config = {
+    url: String(supabaseUrlInput?.value || '').trim(),
+    anonKey: String(supabaseAnonKeyInput?.value || '').trim(),
+  };
+  if(!config.url || !config.anonKey){
+    setSupabaseStatus('자동 연결용 값이 아직 비어 있습니다.');
+    return;
+  }
+  saveSupabaseConfig(config);
+  initSupabaseClient(true);
+  setSupabaseStatus('자동 연결 값을 저장했습니다. 새로고침 시 바로 연결됩니다.', true);
+}
+
+async function testSupabaseSession(){
+  if(!initSupabaseClient(true)) return;
+  const { data, error } = await state.supabase.auth.getSession();
+  if(error){
+    setSupabaseStatus(`세션 확인 실패: ${error.message}`);
+    return;
+  }
+  if(data?.session?.user){
+    setSupabaseStatus(`현재 온라인 세션: ${emailAliasToLoginId(data.session.user.email || '') || data.session.user.id}`, true);
+  } else {
+    setSupabaseStatus('현재 로그인된 온라인 세션은 없습니다. 자동 연결만 준비된 상태입니다.', true);
+  }
+}
+
+function loginCurrentMode(){
+  void loginOnlineUser();
+}
+
+function registerCurrentMode(){
+  requestRegisterApproval();
+}
 
 function buildDeck(){
   const list = currentList();
@@ -1013,7 +2360,11 @@ function sellSelected(){
   state.selectedTurretId = null; updateHud(); refreshActionBar(); showBanner('판매 완료', 1.1);
 }
 
-function resetGame(){
+function resetGame(options={}){
+  const skipProfileSave = !!options.skipProfileSave;
+  if(!skipProfileSave && state.currentUser && (state.wave > 0 || state.kills > 0 || state.turrets.length > 0)){
+    persistUserStats();
+  }
   state.started = false; state.paused = false; state.over = false; state.energy = 100; state.gold = 200; state.wave = 0; state.kills = 0; state.mode = 'install'; state.page = 0;
   state.selectedInstall = INSTALLS[0].key; state.selectedPassive = PASSIVES[0].key; state.selectedTurretId = null;
   state.turrets = []; state.enemies = []; state.bullets = []; state.effects = []; state.pools = []; state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.0; state.last = 0; state.bannerUntil = 0;
@@ -1024,6 +2375,13 @@ function resetGame(){
 
 
   function startGame(){
+    if(state.menuOpen){
+      if(!state.currentUser){
+        openMenu('auth');
+        return;
+      }
+      closeMenu();
+    }
     if(state.over){
       resetGame();
     } else if(state.started){
@@ -1424,7 +2782,7 @@ function damageBase(rawDamage, col){
   }
   clampEnergy();
   updateHud();
-  if(state.energy <= 0){ state.energy = 0; state.over = true; showBanner('ENERGY ZERO - 리셋으로 다시 시작', 4); }
+  if(state.energy <= 0 && !state.over){ state.energy = 0; state.over = true; persistUserStats(); showBanner('ENERGY ZERO - 리셋으로 다시 시작', 4); }
 }
 
 function onEnemyKilled(e){
@@ -1439,7 +2797,7 @@ function onEnemyKilled(e){
 
   function update(dt){
     state.animClock += dt;
-    if(!state.started || state.paused || state.over) return;
+    if(!state.started || state.paused || state.over || state.menuOpen) return;
     if(state.spawnQueue.length === 0 && state.enemies.length === 0){ state.betweenWaves -= dt; if(state.betweenWaves <= 0){ spawnWave(); state.betweenWaves = state.wave % 10 === 0 ? 3.1 : 2.5; } }
     if(state.spawnQueue.length > 0){ state.spawnTimer -= dt; if(state.spawnTimer <= 0){ spawnNext(); state.spawnTimer = currentSpawnInterval(); } }
     for(const t of state.turrets){ fireTurret(t, dt); }
@@ -2553,24 +3911,74 @@ function onEnemyKilled(e){
 
   function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawField(); drawPools(); drawTurrets(); drawEnemies(); drawBullets(); drawEffects(); }
 
-  function onPointer(ev){ ev.preventDefault(); const p = pointerPos(ev); const tile = tileAt(p.x,p.y); if(!tile) return; place(tile.col,tile.row); }
+  function onPointer(ev){ if(state.menuOpen) return; ev.preventDefault(); const p = pointerPos(ev); const tile = tileAt(p.x,p.y); if(!tile) return; place(tile.col,tile.row); }
   function loop(ts){ const now = ts / 1000; const dt = Math.min(0.033, state.last ? now - state.last : 0.016); state.last = now; update(dt); draw(); requestAnimationFrame(loop); }
 
   canvas.addEventListener('pointerdown', onPointer);
   for(const btn of document.querySelectorAll('button')){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
   }
-  startBtn.addEventListener('click', startGame);
-  pauseBtn.addEventListener('click', () => { state.paused = !state.paused; pauseBtn.textContent = state.paused ? '재개' : '정지'; showBanner(state.paused ? '일시정지' : '재개'); });
+  startBtn.addEventListener('click', () => { if(!state.currentUser){ openMenu('auth'); setAuthStatus('로그인 후 게임을 시작할 수 있습니다.'); return; } closeMenu(); startGame(); });
+  pauseBtn.addEventListener('click', () => { if(state.menuOpen) return; state.paused = !state.paused; pauseBtn.textContent = state.paused ? '재개' : '정지'; showBanner(state.paused ? '일시정지' : '재개'); });
   resetBtn.addEventListener('click', resetGame);
   upgradeBtn.addEventListener('click', upgradeSelected);
   sellBtn.addEventListener('click', sellSelected);
   modeInstallBtn.addEventListener('click', () => changeMode('install'));
   modePassiveBtn.addEventListener('click', () => changeMode('passive'));
+  menuBtn.addEventListener('click', () => { openMenu(state.currentUser ? 'home' : 'auth'); });
+  menuCloseBtn.addEventListener('click', closeMenu);
+  rankToggleBtn.addEventListener('click', () => {
+    if(!state.currentUser){ openMenu('auth'); setAuthStatus('로그인 후 랭킹을 확인할 수 있습니다.'); return; }
+    toggleLeaderboardPanel();
+  });
+  onlineUsersBtn.addEventListener('click', () => {
+    if(!state.currentUser){ openMenu('auth'); setAuthStatus('로그인 후 접속자 수를 확인할 수 있습니다.'); return; }
+    togglePresencePanel();
+  });
+  chatToggleBtn.addEventListener('click', () => {
+    if(!state.currentUser){ openMenu('auth'); setAuthStatus('로그인 후 채팅을 사용할 수 있습니다.'); return; }
+    toggleChatPanel();
+  });
+  chatCollapseBtn.addEventListener('click', () => toggleChatPanel(false));
+  leaderboardRefreshBtn.addEventListener('click', () => { void refreshLeaderboard(); });
+  presenceRefreshBtn.addEventListener('click', () => { void refreshPresence(); });
+  authRegisterOpenBtn.addEventListener('click', openRegisterModal);
+  registerCloseBtn.addEventListener('click', closeRegisterModal);
+  registerModal.querySelector('.policyBackdrop').addEventListener('click', closeRegisterModal);
+  authLoginBtn.addEventListener('click', loginCurrentMode);
+  authRegisterBtn.addEventListener('click', registerCurrentMode);
+  loginPassInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
+  loginIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
+  registerEmailInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
+  registerNameInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
+  registerPassInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
+  registerIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
+  authPolicyViewBtn.addEventListener('click', openPolicyModal);
+  policyCloseBtn.addEventListener('click', closePolicyModal);
+  policyRejectBtn.addEventListener('click', rejectPolicyAgreement);
+  policyAgreeBtn.addEventListener('click', () => { void approvePolicyAndRegister(); });
+  policyModal.querySelector('.policyBackdrop').addEventListener('click', closePolicyModal);
+  newGameBtn.addEventListener('click', beginNewGame);
+  logoutBtn.addEventListener('click', () => { void logoutCurrentUser(); });
+  chatSendBtn.addEventListener('click', () => { void sendChatMessage(); });
+  chatInput.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); void sendChatMessage(); } });
   sliderWrap.addEventListener('scroll', () => { const page = Math.round(sliderWrap.scrollLeft / Math.max(1, sliderWrap.clientWidth)); if(page !== state.page){ state.page = Math.max(0, Math.min(pageCount()-1, page)); syncPageUI(); } }, {passive:true});
   window.addEventListener('resize', () => { resize(); sliderWrap.scrollLeft = sliderWrap.clientWidth * state.page; }, {passive:true});
 
-  resetGame(); resize(); requestAnimationFrame(loop);
+  window.addEventListener('beforeunload', () => { persistUserStats(); });
+
+  async function boot(){
+    resetGame({skipProfileSave:true});
+    resize();
+    initSupabaseClient(false);
+    renderLeaderboard([]);
+    renderPresence([], 0);
+    renderChatMessages([]);
+    await hydrateSession();
+    requestAnimationFrame(loop);
+  }
+
+  void boot();
 })();
 </script>
 </body>
