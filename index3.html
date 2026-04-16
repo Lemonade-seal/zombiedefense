@@ -34,7 +34,11 @@
   .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 8px;min-width:0}
   .label{font-size:10px;letter-spacing:.08em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .value{font-size:15px;font-weight:800;line-height:1.1;margin-top:2px;white-space:nowrap}
-  #onlineTopVal{font-size:13px;overflow:hidden;text-overflow:ellipsis}
+  #onlineTopVal{position:relative;font-size:13px;overflow:hidden;text-overflow:ellipsis}
+  #onlineTopVal.nickOverflow{mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);-webkit-mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%)}
+  .nickTicker{display:inline-flex;align-items:center;gap:28px;min-width:max-content;white-space:nowrap;will-change:transform;animation:nickTicker 9s linear infinite}
+  .nickTicker span{display:inline-block;white-space:nowrap}
+  @keyframes nickTicker{0%{transform:translateX(0)}100%{transform:translateX(calc(-50% - 14px))}}
   .controls{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}
   button{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;padding:0 12px;font-weight:800;font-size:13px;min-height:42px;transition:transform .08s ease, box-shadow .14s ease, filter .16s ease}
   button:active{transform:translateY(1px) scale(.992);filter:brightness(1.06)}
@@ -212,7 +216,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-17-03';
+  const BUILD_VERSION = '2026-04-17-04';
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
     // 예: 'https://your-project.supabase.co'
@@ -1705,10 +1709,28 @@ function currentUserLabel(){
   return state.currentUser.name || 'PLAYER';
 }
 
+function updateOnlineTopTicker(name='-'){
+  if(!onlineTopVal) return;
+  const safeName = escapeHtml(name || '-');
+  onlineTopVal.classList.remove('nickOverflow');
+  onlineTopVal.textContent = name || '-';
+  requestAnimationFrame(() => {
+    if(!onlineTopVal) return;
+    const isOverflow = onlineTopVal.scrollWidth > onlineTopVal.clientWidth + 2;
+    if(!isOverflow){
+      onlineTopVal.classList.remove('nickOverflow');
+      onlineTopVal.textContent = name || '-';
+      return;
+    }
+    onlineTopVal.classList.add('nickOverflow');
+    onlineTopVal.innerHTML = `<div class="nickTicker"><span>${safeName}</span><span aria-hidden="true">${safeName}</span></div>`;
+  });
+}
+
 function updateUserBadge(){
   const nick = state.currentUser?.name || '-';
   if(userBadge) userBadge.textContent = currentUserLabel();
-  if(onlineTopVal) onlineTopVal.textContent = nick;
+  updateOnlineTopTicker(nick);
 }
 
 function formatStamp(iso=''){
@@ -2963,6 +2985,7 @@ function sellSelected(){
   state.gold += Math.round(turretTotalSpent(t) * 0.65);
   if(hasPassive('salvage_relay')) healEnergy(2);
   state.turrets = state.turrets.filter(v => v.id !== t.id);
+  state.effects = state.effects.filter((eff) => !(eff.type === 'place' && Math.hypot((eff.x || 0) - t.x, (eff.y || 0) - t.y) < 20));
   state.supportDirty = true;
   state.selectedTurretId = null; updateHud(); refreshActionBar(); showBanner('판매 완료', 1.1);
 }
@@ -3404,6 +3427,8 @@ function onEnemyKilled(e){
 
   function update(dt){
     state.animClock += dt;
+    for(let i=state.effects.length-1;i>=0;i--){ state.effects[i].life -= dt; if(state.effects[i].life <= 0) state.effects.splice(i,1); }
+    if(state.bannerUntil && state.bannerUntil < performance.now()/1000){ hideBanner(); state.bannerUntil = 0; }
     if(!state.started || state.paused || state.over || state.menuOpen) return;
     if(state.spawnQueue.length === 0 && state.enemies.length === 0){ state.betweenWaves -= dt; if(state.betweenWaves <= 0){ spawnWave(); state.betweenWaves = state.wave % 10 === 0 ? 3.1 : 2.5; } }
     if(state.spawnQueue.length > 0){ state.spawnTimer -= dt; if(state.spawnTimer <= 0){ spawnNext(); state.spawnTimer = currentSpawnInterval(); } }
@@ -3463,8 +3488,6 @@ function onEnemyKilled(e){
       }
     }
 
-    for(let i=state.effects.length-1;i>=0;i--){ state.effects[i].life -= dt; if(state.effects[i].life <= 0) state.effects.splice(i,1); }
-    if(state.bannerUntil && state.bannerUntil < performance.now()/1000){ hideBanner(); state.bannerUntil = 0; }
   }
 
 
