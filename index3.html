@@ -34,6 +34,7 @@
   .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 8px;min-width:0}
   .label{font-size:10px;letter-spacing:.08em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .value{font-size:15px;font-weight:800;line-height:1.1;margin-top:2px;white-space:nowrap}
+  #onlineTopVal{font-size:13px;overflow:hidden;text-overflow:ellipsis}
   .controls{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}
   button{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;padding:0 12px;font-weight:800;font-size:13px;min-height:42px;transition:transform .08s ease, box-shadow .14s ease, filter .16s ease}
   button:active{transform:translateY(1px) scale(.992);filter:brightness(1.06)}
@@ -100,6 +101,7 @@
     .stat{padding:9px 10px;border-radius:14px}
     .label{font-size:11px}
     .value{font-size:18px}
+    #onlineTopVal{font-size:15px}
     .controls{gap:8px}
     button{font-size:14px;min-height:46px;padding:0 16px}
     button.small{min-height:38px;font-size:12px}
@@ -125,6 +127,7 @@
     .topbar{padding:14px 18px}
     .stats{grid-template-columns:repeat(5,minmax(120px,1fr))}
     .value{font-size:20px}
+    #onlineTopVal{font-size:16px}
     .controls button{min-width:110px}
     .bottombar{padding:12px 18px 18px;grid-template-rows:38px 132px 46px}
     .caption,.actionbar,.sliderWrap{max-width:1220px}
@@ -138,7 +141,7 @@
 <div id="app">
   <div class="topbar">
     <div class="stats">
-      <div class="stat"><div class="label">ENERGY</div><div class="value" id="energyVal">100</div></div>
+      <div class="stat"><div class="label">ONLINE</div><div class="value" id="onlineTopVal">-</div></div>
       <div class="stat"><div class="label">GOLD</div><div class="value" id="goldVal">200</div></div>
       <div class="stat"><div class="label">WAVE</div><div class="value" id="waveVal">0</div></div>
       <div class="stat"><div class="label">KILL</div><div class="value" id="killVal">0</div></div>
@@ -184,7 +187,7 @@
   const ctx = canvas.getContext('2d');
   const fieldWrap = document.getElementById('fieldWrap');
   const banner = document.getElementById('banner');
-  const energyVal = document.getElementById('energyVal');
+  const onlineTopVal = document.getElementById('onlineTopVal');
   const goldVal = document.getElementById('goldVal');
   const waveVal = document.getElementById('waveVal');
   const killVal = document.getElementById('killVal');
@@ -209,7 +212,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-17-02';
+  const BUILD_VERSION = '2026-04-17-03';
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
     // 예: 'https://your-project.supabase.co'
@@ -834,7 +837,7 @@ function upgradeDeltaText(item, nextLevel){
 
 function updateHud(){
   clampEnergy();
-  energyVal.textContent = `${Math.max(0, Math.round(state.energy))}/${energyMaxValue()}`;
+  if(onlineTopVal) onlineTopVal.textContent = state.currentUser?.name || '-';
   goldVal.textContent = String(state.gold);
   waveVal.textContent = String(state.wave);
   killVal.textContent = String(state.kills);
@@ -868,7 +871,7 @@ function injectRuntimeUi(){
   const runtimeStyle = document.createElement('style');
   runtimeStyle.textContent = `
     .hudUserTools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-.userBadge{display:flex;align-items:center;min-height:34px;padding:0 10px;border-radius:10px;border:1px solid #2b3648;background:#111823;color:#dbe8f8;font-size:11px;font-weight:900;letter-spacing:.04em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.userBadge{display:none !important;align-items:center;min-height:34px;padding:0 10px;border-radius:10px;border:1px solid #2b3648;background:#111823;color:#dbe8f8;font-size:11px;font-weight:900;letter-spacing:.04em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
     [hidden]{display:none !important}
     #menuLayer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:30}
     #menuLayer.open{opacity:1;pointer-events:auto}
@@ -1020,7 +1023,7 @@ function injectRuntimeUi(){
     #app .controls .hudUserTools > button.small{min-height:30px;padding:0 9px;font-size:11px}
     @media (min-width:768px){
       .controls{gap:6px}
-      .userBadge{min-height:32px;max-width:150px}
+      .userBadge{display:none !important;min-height:32px;max-width:150px}
       #app .controls > button,
       #app .controls .hudUserTools > button{min-height:34px;padding:0 11px;font-size:12px}
       #app .controls > button.small,
@@ -1032,17 +1035,16 @@ function injectRuntimeUi(){
   const userTools = document.createElement('div');
   userTools.className = 'hudUserTools';
   userTools.innerHTML = `
-    <div id="userBadge" class="userBadge">로그인 필요</div>
-    <button id="menuBtn" class="small">메뉴</button>
+    <button id="onlineUsersBtn" class="small">접속</button>
     <button id="rankToggleBtn" class="small">랭킹</button>
-    <button id="onlineUsersBtn" class="small">접속자</button>
     <button id="chatToggleBtn" class="small">채팅</button>
+    <button id="menuBtn" class="small">메뉴</button>
   `;
   controls.insertBefore(userTools, controls.firstChild);
-  const rankBtn = userTools.querySelector('#rankToggleBtn');
-  if(rankBtn){
-    userTools.insertBefore(startBtn, rankBtn);
-    userTools.insertBefore(resetBtn, rankBtn);
+  const onlineBtn = userTools.querySelector('#onlineUsersBtn');
+  if(onlineBtn){
+    userTools.insertBefore(startBtn, onlineBtn);
+    userTools.insertBefore(resetBtn, onlineBtn);
   }
   startBtn.classList.add('small');
   resetBtn.classList.add('small');
@@ -1700,11 +1702,13 @@ function getCurrentProfile(){
 
 function currentUserLabel(){
   if(!state.currentUser) return '로그인 필요';
-  return `ONLINE · ${state.currentUser.name}`;
+  return state.currentUser.name || 'PLAYER';
 }
 
 function updateUserBadge(){
+  const nick = state.currentUser?.name || '-';
   if(userBadge) userBadge.textContent = currentUserLabel();
+  if(onlineTopVal) onlineTopVal.textContent = nick;
 }
 
 function formatStamp(iso=''){
@@ -1840,7 +1844,7 @@ function renderPresence(items, count){
   const total = Number(count || 0);
   state.onlineCount = total;
   if(presenceCount) presenceCount.textContent = total ? `${total}명` : '-';
-  if(onlineUsersBtn) onlineUsersBtn.textContent = total ? `접속 ${total}` : '접속자';
+  if(onlineUsersBtn) onlineUsersBtn.textContent = total ? `접속 ${total}` : '접속';
   if(!presenceList) return;
   if(!rows.length){
     presenceList.innerHTML = `<div class="menuHint">현재 접속 중인 사용자가 없거나 아직 불러오지 못했습니다.</div>`;
@@ -3712,6 +3716,8 @@ function onEnemyKilled(e){
     }
     ctx.fillStyle = '#ffd0d6';
     ctx.fillText('BASE ENERGY', f.left + 8, gaugeY + 21);
+    ctx.textAlign = 'left';
+    ctx.fillText(`${Math.max(0, Math.round(state.energy))}/${energyMaxValue()}`, f.left + 96, gaugeY + 21);
   }
 
   function shapeCtx(c, x,y,w,h,color){ c.save(); c.translate(x,y); c.fillStyle = color; c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = Math.max(1, Math.min(w,h)*0.05); }
