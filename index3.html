@@ -843,6 +843,16 @@ function updateAuthGate(){
 }
 
 
+function syncStartToggleButton(){
+  if(!startBtn) return;
+  if(state.started && !state.over){
+    startBtn.textContent = state.paused ? '재개' : '정지';
+  }else{
+    startBtn.textContent = '시작';
+  }
+}
+
+
 function injectRuntimeUi(){
   const runtimeStyle = document.createElement('style');
   runtimeStyle.textContent = `
@@ -953,11 +963,11 @@ function injectRuntimeUi(){
     #chatPanel{background:rgba(8,14,22,.22);border:1px solid rgba(120,150,190,.18);box-shadow:0 10px 24px rgba(0,0,0,.18);backdrop-filter:blur(10px)}
     #chatPanel .fieldPanelHead{border-bottom:1px solid rgba(120,150,190,.10);background:transparent}
     #chatPanel .fieldPanelBody{padding:10px 12px 6px;background:transparent}
-    .chatMessages{display:grid;gap:4px;max-height:min(42vh,320px);overflow:auto;padding-right:2px;background:transparent}
-    .chatLine{display:grid;grid-template-columns:48px max-content 1fr;gap:8px;align-items:start;font-size:12px;line-height:1.45}
-    .chatTime{color:#9cb8da;font-variant-numeric:tabular-nums;white-space:nowrap}
-    .chatNick{color:#e5effd;font-weight:900;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}
-    .chatText{color:#eef5ff;white-space:pre-wrap;word-break:break-word}
+    .chatMessages{display:grid;gap:3px;max-height:min(42vh,320px);overflow:auto;padding-right:2px;background:transparent}
+    .chatLine{display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.45;min-width:0}
+    .chatTime{flex:0 0 40px;color:#9cb8da;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .chatNick{flex:0 0 78px;color:#e5effd;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .chatText{flex:1 1 auto;min-width:0;color:#eef5ff;white-space:pre-wrap;word-break:break-word}
     .chatComposer{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 12px;border-top:1px solid rgba(120,150,190,.10);background:transparent}
     .chatComposer input{width:100%;border:1px solid rgba(120,150,190,.18);background:rgba(7,12,18,.26);color:#eff5ff;border-radius:12px;padding:10px 12px;font:inherit;outline:none}
     .appStatusBadge{font-size:11px;color:#9cc4ff;font-weight:900}
@@ -973,14 +983,16 @@ function injectRuntimeUi(){
       .leaderStat{font-size:11px}
       .fieldPanels{left:12px;right:12px;top:12px;max-width:none}
       .chatComposer{grid-template-columns:1fr}
-      .chatLine{grid-template-columns:42px 72px 1fr;gap:6px}
-      .chatNick{max-width:72px}
+      .chatLine{gap:6px}
+      .chatTime{flex-basis:38px}
+      .chatNick{flex-basis:64px}
     }
     .controls{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:5px;min-width:0;padding-bottom:2px}
     .controls::-webkit-scrollbar{display:none}
     .hudUserTools{display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-start;gap:5px;flex:0 0 auto;min-width:max-content}
     .hudUserTools > *{flex:0 0 auto}
     .userBadge{min-height:30px;padding:0 8px;font-size:10px;max-width:132px}
+    #pauseBtn{display:none !important}
     #app .controls > button,
     #app .controls .hudUserTools > button{flex:0 0 auto;min-height:32px;padding:0 10px;font-size:12px;border-radius:10px}
     #app .controls > button.small,
@@ -1006,6 +1018,14 @@ function injectRuntimeUi(){
     <button id="chatToggleBtn" class="small">채팅</button>
   `;
   controls.insertBefore(userTools, controls.firstChild);
+  const rankBtn = userTools.querySelector('#rankToggleBtn');
+  if(rankBtn){
+    userTools.insertBefore(startBtn, rankBtn);
+    userTools.insertBefore(resetBtn, rankBtn);
+  }
+  startBtn.classList.add('small');
+  resetBtn.classList.add('small');
+  startBtn.textContent = '시작';
 
   const panels = document.createElement('div');
   panels.className = 'fieldPanels';
@@ -1560,6 +1580,15 @@ function formatStamp(iso=''){
   return `${yy}.${mm}.${dd} ${hh}:${mi}`;
 }
 
+function formatChatStamp(iso=''){
+  if(!iso) return '--:--';
+  const d = new Date(iso);
+  if(Number.isNaN(d.getTime())) return '--:--';
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mi}`;
+}
+
 function formatPolicyConsent(profile){
   if(!profile?.privacyAgreedAt) return '미동의';
   return `${privacyPolicyVersion()} · ${formatStamp(profile.privacyAgreedAt)}`;
@@ -1657,8 +1686,8 @@ function renderLeaderboard(items){
         <div class="leaderRank">#${index + 1}</div>
         <div class="leaderMain">
           <div class="leaderName">${escapeHtml(row.display_name || 'PLAYER')}</div>
-          <div class="leaderStat">W ${Number(row.best_wave || 0)}</div>
-          <div class="leaderStat">K ${Number(row.best_kills || 0)}</div>
+          <div class="leaderStat">WAVE ${Number(row.best_wave || 0)}</div>
+          <div class="leaderStat">KILL ${Number(row.best_kills || 0)}</div>
         </div>
       </div>
     `).join('')
@@ -1695,7 +1724,7 @@ function renderChatMessages(items){
   }
   const html = list.map((row) => `
     <div class="chatLine">
-      <span class="chatTime">${formatStamp(row.created_at || '')}</span>
+      <span class="chatTime">${formatChatStamp(row.created_at || '')}</span>
       <span class="chatNick">${escapeHtml(row.display_name || 'PLAYER')}</span>
       <span class="chatText">${escapeHtml(row.message || '')}</span>
     </div>
@@ -2783,7 +2812,7 @@ function resetGame(options={}){
   state.turrets = []; state.enemies = []; state.bullets = []; state.effects = []; state.pools = []; state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.0; state.last = 0; state.bannerUntil = 0;
   state.passives = {}; state.emergencyUsed = false; state.energyLossBank = 0; state.damageBuffs = []; state.animClock = 0;
   state.supportCache = new Map(); state.supportDirty = true;
-  banner.style.display='none'; banner.style.opacity='0'; pauseBtn.textContent='정지'; updateHud(); buildDeck(); updateSelectedName(); refreshActionBar(); scrollToPage(0);
+  banner.style.display='none'; banner.style.opacity='0'; state.paused = false; syncStartToggleButton(); updateHud(); buildDeck(); updateSelectedName(); refreshActionBar(); scrollToPage(0);
 }
 
 
@@ -2806,7 +2835,7 @@ function resetGame(options={}){
     state.last = 0;
     state.spawnTimer = 2.95;
     state.betweenWaves = 2.9;
-    pauseBtn.textContent = '정지';
+    syncStartToggleButton();
     showBanner('웨이브 준비 중', 1.2);
   }
   function earlyWaveSpeedScale(wave = state.wave){
@@ -3195,7 +3224,7 @@ function damageBase(rawDamage, col){
   }
   clampEnergy();
   updateHud();
-  if(state.energy <= 0 && !state.over){ state.energy = 0; state.over = true; persistUserStats(); showBanner('ENERGY ZERO - 리셋으로 다시 시작', 4); }
+  if(state.energy <= 0 && !state.over){ state.energy = 0; state.over = true; syncStartToggleButton(); persistUserStats(); showBanner('ENERGY ZERO - 리셋으로 다시 시작', 4); }
 }
 
 function onEnemyKilled(e){
@@ -4331,8 +4360,22 @@ function onEnemyKilled(e){
   for(const btn of document.querySelectorAll('button')){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
   }
-  startBtn.addEventListener('click', () => { if(!state.currentUser){ openMenu('auth'); setAuthStatus('로그인 후 게임을 시작할 수 있습니다.'); return; } closeMenu(); startGame(); });
-  pauseBtn.addEventListener('click', () => { if(state.menuOpen) return; state.paused = !state.paused; pauseBtn.textContent = state.paused ? '재개' : '정지'; showBanner(state.paused ? '일시정지' : '재개'); });
+  startBtn.addEventListener('click', () => {
+    if(!state.currentUser){
+      openMenu('auth');
+      setAuthStatus('로그인 후 게임을 시작할 수 있습니다.');
+      return;
+    }
+    closeMenu();
+    if(state.started && !state.over){
+      state.paused = !state.paused;
+      syncStartToggleButton();
+      showBanner(state.paused ? '일시정지' : '재개');
+      return;
+    }
+    startGame();
+  });
+  pauseBtn.addEventListener('click', () => {});
   resetBtn.addEventListener('click', resetGame);
   upgradeBtn.addEventListener('click', upgradeSelected);
   sellBtn.addEventListener('click', sellSelected);
