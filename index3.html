@@ -240,6 +240,7 @@
 
   const menuLayer = document.getElementById('menuLayer');
   const menuCloseBtn = document.getElementById('menuCloseBtn');
+  const menuBackdrop = menuLayer.querySelector('.menuBackdrop');
   const authView = document.getElementById('authView');
   const homeView = document.getElementById('homeView');
   const supabaseUrlInput = document.getElementById('supabaseUrlInput');
@@ -901,7 +902,10 @@ function injectRuntimeUi(){
     .leaderboardBox,.presenceBox{padding:12px;border-radius:16px;background:#0d1520;border:1px solid #2a3648;display:grid;gap:8px}
     .leaderboardHead{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12px;font-weight:900;color:#cfe7ff}
     .leaderboardList{display:grid;gap:6px}
-    .leaderItem{display:grid;grid-template-columns:42px 1fr auto auto;gap:8px;align-items:center;padding:10px 12px;border-radius:12px;background:#0a111a;border:1px solid #202f41;font-size:12px}
+    .leaderItem{display:grid;grid-template-columns:42px 1fr;gap:8px;align-items:center;padding:10px 12px;border-radius:12px;background:#0a111a;border:1px solid #202f41;font-size:12px}
+    .leaderMain{display:flex;align-items:center;gap:8px;min-width:0}
+    .leaderName{flex:1 1 auto;min-width:0;font-weight:800;color:#f4f8ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .leaderStat{flex:0 0 auto;color:#9ab0ca;font-weight:900;white-space:nowrap}
     .leaderRank{font-weight:900;color:#ffe191}
     .leaderName{font-weight:800;color:#f4f8ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .leaderMeta{color:#9ab0ca;font-weight:800}
@@ -945,12 +949,17 @@ function injectRuntimeUi(){
     .presenceList{display:grid;gap:6px}
     .presenceItem{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:12px;background:#0a111a;border:1px solid #202f41;font-size:12px}
     .presenceItem strong{color:#eef5ff}
-    .chatMessages{display:grid;gap:6px;max-height:min(42vh,320px);overflow:auto;padding-right:2px}
-    .chatItem{padding:8px 10px;border-radius:12px;background:#0a111a;border:1px solid #202f41;font-size:12px;line-height:1.45}
-    .chatItemHead{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;font-weight:900;color:#dfeaff}
-    .chatBody{color:#e8f0fb;white-space:pre-wrap;word-break:break-word}
-    .chatComposer{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 12px;border-top:1px solid rgba(120,150,190,.16)}
-    .chatComposer input{width:100%;border:1px solid #2a3648;background:#0a111a;color:#eff5ff;border-radius:12px;padding:10px 12px;font:inherit;outline:none}
+    #menuCloseBtn{display:none !important}
+    #chatPanel{background:rgba(8,14,22,.22);border:1px solid rgba(120,150,190,.18);box-shadow:0 10px 24px rgba(0,0,0,.18);backdrop-filter:blur(10px)}
+    #chatPanel .fieldPanelHead{border-bottom:1px solid rgba(120,150,190,.10);background:transparent}
+    #chatPanel .fieldPanelBody{padding:10px 12px 6px;background:transparent}
+    .chatMessages{display:grid;gap:4px;max-height:min(42vh,320px);overflow:auto;padding-right:2px;background:transparent}
+    .chatLine{display:grid;grid-template-columns:48px max-content 1fr;gap:8px;align-items:start;font-size:12px;line-height:1.45}
+    .chatTime{color:#9cb8da;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .chatNick{color:#e5effd;font-weight:900;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}
+    .chatText{color:#eef5ff;white-space:pre-wrap;word-break:break-word}
+    .chatComposer{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 12px;border-top:1px solid rgba(120,150,190,.10);background:transparent}
+    .chatComposer input{width:100%;border:1px solid rgba(120,150,190,.18);background:rgba(7,12,18,.26);color:#eff5ff;border-radius:12px;padding:10px 12px;font:inherit;outline:none}
     .appStatusBadge{font-size:11px;color:#9cc4ff;font-weight:900}
     @media (max-width:640px){
       #menuLayer,.policyModal{padding:12px}
@@ -960,9 +969,12 @@ function injectRuntimeUi(){
       .hudUserTools{width:100%}
       .userBadge,#menuBtn,#rankToggleBtn,#onlineUsersBtn,#chatToggleBtn{flex:1 1 calc(50% - 6px)}
       .leaderItem{grid-template-columns:36px 1fr}
-      .leaderItem .leaderMeta{grid-column:2}
+      .leaderMain{gap:6px;flex-wrap:wrap}
+      .leaderStat{font-size:11px}
       .fieldPanels{left:12px;right:12px;top:12px;max-width:none}
       .chatComposer{grid-template-columns:1fr}
+      .chatLine{grid-template-columns:42px 72px 1fr;gap:6px}
+      .chatNick{max-width:72px}
     }
     .controls{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:5px;min-width:0;padding-bottom:2px}
     .controls::-webkit-scrollbar{display:none}
@@ -1643,9 +1655,11 @@ function renderLeaderboard(items){
     ? list.map((row, index) => `
       <div class="leaderItem">
         <div class="leaderRank">#${index + 1}</div>
-        <div class="leaderName">${escapeHtml(row.display_name || 'PLAYER')}</div>
-        <div class="leaderMeta">WAVE ${Number(row.best_wave || 0)}</div>
-        <div class="leaderMeta">KILL ${Number(row.best_kills || 0)}</div>
+        <div class="leaderMain">
+          <div class="leaderName">${escapeHtml(row.display_name || 'PLAYER')}</div>
+          <div class="leaderStat">W ${Number(row.best_wave || 0)}</div>
+          <div class="leaderStat">K ${Number(row.best_kills || 0)}</div>
+        </div>
       </div>
     `).join('')
     : `<div class="menuHint">로그인 후 랭킹을 불러옵니다.</div>`;
@@ -1680,12 +1694,10 @@ function renderChatMessages(items){
     return;
   }
   const html = list.map((row) => `
-    <div class="chatItem">
-      <div class="chatItemHead">
-        <span>${escapeHtml(row.display_name || 'PLAYER')}</span>
-        <span>${formatStamp(row.created_at || '')}</span>
-      </div>
-      <div class="chatBody">${escapeHtml(row.message || '')}</div>
+    <div class="chatLine">
+      <span class="chatTime">${formatStamp(row.created_at || '')}</span>
+      <span class="chatNick">${escapeHtml(row.display_name || 'PLAYER')}</span>
+      <span class="chatText">${escapeHtml(row.message || '')}</span>
     </div>
   `).join('');
   if(state.chatLastRendered !== html){
@@ -2083,7 +2095,6 @@ function renderMenu(view='auto'){
   updateAuthGate();
   authView.hidden = !forceAuth;
   homeView.hidden = forceAuth;
-  menuCloseBtn.style.display = forceAuth ? 'none' : '';
   if(forceAuth){
     if(menuEyebrow) menuEyebrow.textContent = 'LOGIN · ONLINE ACCOUNT';
     menuTitle.textContent = '좀비 막기게임 로그인';
@@ -4327,8 +4338,17 @@ function onEnemyKilled(e){
   sellBtn.addEventListener('click', sellSelected);
   modeInstallBtn.addEventListener('click', () => changeMode('install'));
   modePassiveBtn.addEventListener('click', () => changeMode('passive'));
-  menuBtn.addEventListener('click', () => { openMenu(state.currentUser ? 'home' : 'auth'); });
+  menuBtn.addEventListener('click', () => {
+    if(state.menuOpen && state.authFlowUnlocked){
+      closeMenu();
+      return;
+    }
+    openMenu(state.currentUser ? 'home' : 'auth');
+  });
   menuCloseBtn.addEventListener('click', closeMenu);
+  if(menuBackdrop) menuBackdrop.addEventListener('click', () => {
+    if(state.authFlowUnlocked) closeMenu();
+  });
   rankToggleBtn.addEventListener('click', () => {
     if(!state.currentUser){ openMenu('auth'); setAuthStatus('로그인 후 랭킹을 확인할 수 있습니다.'); return; }
     toggleLeaderboardPanel();
