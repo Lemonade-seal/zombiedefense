@@ -36,9 +36,10 @@
   .value{font-size:15px;font-weight:800;line-height:1.1;margin-top:2px;white-space:nowrap}
   #onlineTopVal{position:relative;font-size:13px;overflow:hidden;text-overflow:ellipsis}
   #onlineTopVal.nickOverflow{mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);-webkit-mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%)}
-  .nickTicker{display:inline-flex;align-items:center;gap:28px;min-width:max-content;white-space:nowrap;will-change:transform;animation:nickTicker 9s linear infinite}
+    .nickTicker{display:inline-flex;align-items:center;min-width:max-content;white-space:nowrap;will-change:transform}
   .nickTicker span{display:inline-block;white-space:nowrap}
-  @keyframes nickTicker{0%{transform:translateX(0)}100%{transform:translateX(calc(-50% - 14px))}}
+  .nickTicker.runOnce{animation:nickTickerOnce var(--ticker-duration, 6s) linear 1 forwards}
+  @keyframes nickTickerOnce{0%{transform:translateX(0)}100%{transform:translateX(calc(-1 * var(--ticker-distance, 0px)))}}
   .controls{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}
   button{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;padding:0 12px;font-weight:800;font-size:13px;min-height:42px;transition:transform .08s ease, box-shadow .14s ease, filter .16s ease}
   button:active{transform:translateY(1px) scale(.992);filter:brightness(1.06)}
@@ -216,7 +217,13 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-17-04';
+  const BUILD_VERSION = '2026-04-17-05';
+  const PATCH_NOTES = [
+    '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
+    'ONLINE 긴 닉네임은 한 번만 왼쪽으로 이동한 뒤 멈추도록 수정',
+    '기물 판매 후 전장에 남던 파란 원 이펙트 정리',
+    '상단 ONLINE 칸과 버튼 배치를 모바일 화면에 맞게 정리',
+  ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
     // 예: 'https://your-project.supabase.co'
@@ -248,6 +255,7 @@
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
   const appOnlineStatus = document.getElementById('appOnlineStatus');
+  const patchNotesSummary = document.getElementById('patchNotesSummary');
 
   const menuLayer = document.getElementById('menuLayer');
   const menuCloseBtn = document.getElementById('menuCloseBtn');
@@ -928,6 +936,9 @@ function injectRuntimeUi(){
     .profileStat .k{font-size:11px;color:#8ea4c1;font-weight:800;letter-spacing:.08em}
     .profileStat .v{margin-top:6px;font-size:17px;font-weight:900;line-height:1.1;word-break:break-word}
     .menuFoot{font-size:12px;color:#8da2be;line-height:1.45}
+    .patchNotesIntro{display:block;margin-bottom:8px}
+    .patchNotesList{margin:0;padding-left:18px;display:grid;gap:4px}
+    .patchNotesVersion{display:inline-block;margin-top:8px;color:#9fd0ff;font-weight:900;letter-spacing:.06em}
     .leaderboardBox,.presenceBox{padding:12px;border-radius:16px;background:#0d1520;border:1px solid #2a3648;display:grid;gap:8px}
     .leaderboardHead{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12px;font-weight:900;color:#cfe7ff}
     .leaderboardList{display:grid;gap:6px}
@@ -1116,15 +1127,7 @@ function injectRuntimeUi(){
         <div class="authStack">
           <div class="authBox">
             <div class="authBoxTitle">패치노트</div>
-            <div class="authSummary">
-              최근 적용된 로그인/시작 화면 패치 내용입니다.
-              <ul>
-                <li>회원가입 완료 시 로그인 화면으로 자동 이동</li>
-                <li>게임은 전장 진입 후 상단 시작 버튼을 눌러야 웨이브 시작</li>
-                <li>채팅/접속자/랭킹 표시를 모바일 화면에 맞게 정리</li>
-                <li>개인정보 정책은 팝업에서 거절/동의 선택</li>
-              </ul>
-            </div>
+            <div class="authSummary" id="patchNotesSummary"></div>
           </div>
 
           <div class="authBox">
@@ -1709,21 +1712,40 @@ function currentUserLabel(){
   return state.currentUser.name || 'PLAYER';
 }
 
+function renderPatchNotes(){
+  if(!patchNotesSummary) return;
+  const items = Array.isArray(PATCH_NOTES) ? PATCH_NOTES.filter(Boolean) : [];
+  const listHtml = items.length
+    ? `<ul class="patchNotesList">${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+    : '<div>표시할 패치노트가 없습니다.</div>';
+  patchNotesSummary.innerHTML = `
+    <span class="patchNotesIntro">최근 적용된 버전과 변경 내용을 표시합니다.</span>
+    ${listHtml}
+    <span class="patchNotesVersion">BUILD ${escapeHtml(BUILD_VERSION)}</span>
+  `;
+}
+
 function updateOnlineTopTicker(name='-'){
   if(!onlineTopVal) return;
-  const safeName = escapeHtml(name || '-');
+  const rawName = String(name || '-');
+  const safeName = escapeHtml(rawName);
   onlineTopVal.classList.remove('nickOverflow');
-  onlineTopVal.textContent = name || '-';
+  onlineTopVal.style.removeProperty('--ticker-distance');
+  onlineTopVal.style.removeProperty('--ticker-duration');
+  onlineTopVal.textContent = rawName;
   requestAnimationFrame(() => {
     if(!onlineTopVal) return;
-    const isOverflow = onlineTopVal.scrollWidth > onlineTopVal.clientWidth + 2;
-    if(!isOverflow){
+    const overflow = Math.max(0, onlineTopVal.scrollWidth - onlineTopVal.clientWidth);
+    if(overflow <= 2){
       onlineTopVal.classList.remove('nickOverflow');
-      onlineTopVal.textContent = name || '-';
+      onlineTopVal.textContent = rawName;
       return;
     }
+    const duration = Math.min(10, Math.max(4.2, overflow / 22));
     onlineTopVal.classList.add('nickOverflow');
-    onlineTopVal.innerHTML = `<div class="nickTicker"><span>${safeName}</span><span aria-hidden="true">${safeName}</span></div>`;
+    onlineTopVal.style.setProperty('--ticker-distance', overflow + 'px');
+    onlineTopVal.style.setProperty('--ticker-duration', duration.toFixed(2) + 's');
+    onlineTopVal.innerHTML = `<div class="nickTicker runOnce"><span>${safeName}</span></div>`;
   });
 }
 
@@ -4638,6 +4660,7 @@ function onEnemyKilled(e){
     resetGame({skipProfileSave:true});
     resize();
     syncAutoLoginCheckbox();
+  renderPatchNotes();
     if(autoLoginCheck){
       autoLoginCheck.addEventListener('change', () => {
         const enabled = !!autoLoginCheck.checked;
