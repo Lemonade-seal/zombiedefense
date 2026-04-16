@@ -248,6 +248,8 @@
   const loginPassInput = document.getElementById('loginPassInput');
   const registerIdInput = document.getElementById('registerIdInput');
   const registerPassInput = document.getElementById('registerPassInput');
+  const registerPassConfirmInput = document.getElementById('registerPassConfirmInput');
+  const registerPassMatch = document.getElementById('registerPassMatch');
   const registerNameInput = document.getElementById('registerNameInput');
   const authRegisterOpenBtn = document.getElementById('authRegisterOpenBtn');
   const registerModal = document.getElementById('registerModal');
@@ -262,6 +264,7 @@
   const authRegisterBtn = document.getElementById('authRegisterBtn');
   const registerStatus = document.getElementById('registerStatus');
   const authStatus = document.getElementById('authStatus');
+  const menuEyebrow = document.getElementById('menuEyebrow');
   const menuTitle = document.getElementById('menuTitle');
   const menuSubtitle = document.getElementById('menuSubtitle');
   const authNotice = document.getElementById('authNotice');
@@ -423,6 +426,7 @@ const state = {
   state.menuOpen = true;
   state.currentUser = null;
   state.profileCache = null;
+  state.authFlowUnlocked = false;
   state.supabase = null;
   state.supabaseReady = false;
   state.supabaseUrl = '';
@@ -827,12 +831,21 @@ function updateHud(){
   refreshActionBar();
 }
 
+function updateAuthGate(){
+  const locked = !state.authFlowUnlocked;
+  app.classList.toggle('authLocked', locked);
+  [startBtn, pauseBtn, resetBtn, upgradeBtn, sellBtn, modeInstallBtn, modePassiveBtn].forEach(btn => {
+    if(btn) btn.disabled = locked;
+  });
+}
+
 
 function injectRuntimeUi(){
   const runtimeStyle = document.createElement('style');
   runtimeStyle.textContent = `
     .hudUserTools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-    .userBadge{display:flex;align-items:center;min-height:34px;padding:0 10px;border-radius:10px;border:1px solid #2b3648;background:#111823;color:#dbe8f8;font-size:11px;font-weight:900;letter-spacing:.04em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.userBadge{display:flex;align-items:center;min-height:34px;padding:0 10px;border-radius:10px;border:1px solid #2b3648;background:#111823;color:#dbe8f8;font-size:11px;font-weight:900;letter-spacing:.04em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+    [hidden]{display:none !important}
     #menuLayer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:30}
     #menuLayer.open{opacity:1;pointer-events:auto}
     #menuLayer .menuBackdrop{position:absolute;inset:0;background:rgba(5,8,12,.72);backdrop-filter:blur(8px)}
@@ -853,6 +866,19 @@ function injectRuntimeUi(){
     .menuActions{grid-template-columns:1fr}
     .menuActionsTri{grid-template-columns:1fr 1fr}
     .menuGridBtns{grid-template-columns:1fr 1fr}
+    .authStack{display:grid;gap:12px}
+    .authBox{padding:14px;border-radius:16px;background:#0d1520;border:1px solid #2a3648;display:grid;gap:10px}
+    .authBoxTitle{font-size:13px;font-weight:900;letter-spacing:.08em;color:#cfe7ff}
+    .authSummary{font-size:13px;line-height:1.6;color:#dbe8f8}
+    .authSummary ul{margin:8px 0 0 18px;padding:0}
+    .authButtons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .fieldRule{font-size:11px;line-height:1.4;color:#8ea4c1;font-weight:700}
+    .inlineStatus{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:900;color:#8ea4c1}
+    .inlineStatus.ok{color:#9ff0bd}
+    .inlineStatus.bad{color:#ffb0b0}
+    .homeStartCard{padding:14px;border-radius:16px;background:linear-gradient(180deg,#0f1723,#131f2c);border:1px solid #2a3a50;display:grid;gap:8px}
+    .homeStartTitle{font-size:18px;font-weight:900;line-height:1.1}
+    .homeStartText{font-size:13px;line-height:1.6;color:#dbe8f8}
     .menuStatus{font-size:12px;line-height:1.5;color:#ffcf8e;min-height:18px}
     .menuStatus.ok{color:#9ff0bd}
     .menuStatus.dim{color:#8ea4c1}
@@ -891,6 +917,22 @@ function injectRuntimeUi(){
     .policyBody h3{margin:0 0 8px;font-size:14px;color:#cfe7ff}
     .policyBody ul{margin:8px 0 0 18px;padding:0}
     .policyActions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+    #app.authLocked{grid-template-rows:1fr;background:linear-gradient(180deg,#0d1219,#151c28)}
+    .authLocked .topbar,
+    .authLocked #fieldWrap,
+    .authLocked .bottombar{
+      display:none !important;
+      pointer-events:none;
+    }
+    .authLocked #fieldWrap{position:relative}
+    .authLocked #fieldWrap::after{
+      content:'';
+      position:absolute;
+      inset:0;
+      display:none;
+      color:#eaf3ff;
+      background:rgba(5,10,16,.36);
+    }
     .isHidden{display:none !important}
     .fieldPanels{position:absolute;top:12px;right:12px;display:grid;gap:10px;z-index:12;pointer-events:none;max-width:min(380px,calc(100% - 24px))}
     .fieldPanel{pointer-events:auto;display:none;background:rgba(10,16,24,.94);border:1px solid rgba(120,150,190,.24);border-radius:16px;box-shadow:0 16px 38px rgba(0,0,0,.28);backdrop-filter:blur(6px)}
@@ -985,25 +1027,47 @@ function injectRuntimeUi(){
     <div class="menuPanel">
       <div class="menuHeader">
         <div>
-          <div class="menuEyebrow">START MENU · ONLINE ACCOUNT</div>
-          <h1 id="menuTitle">ZOMBIE DEFENSE</h1>
-          <p id="menuSubtitle" class="menuSubtitle">첫 화면은 로그인과 회원가입만 표시됩니다. 로그인 후 게임을 시작하세요.</p>
+          <div id="menuEyebrow" class="menuEyebrow">LOGIN · ONLINE ACCOUNT</div>
+          <h1 id="menuTitle">축구게임 로그인</h1>
+          <p id="menuSubtitle" class="menuSubtitle">로그인 전에는 로그인과 회원가입만 표시됩니다. 로그인 성공 후에만 시작 화면이 열립니다.</p>
         </div>
         <button id="menuCloseBtn" class="small">닫기</button>
       </div>
 
       <div id="authView" class="menuView">
-        <div class="menuSection">
-          <div class="menuSectionTitle">로그인</div>
-          <label class="menuField">아이디
-            <input id="loginIdInput" type="text" maxlength="24" placeholder="아이디 입력" autocomplete="username" autocapitalize="off" spellcheck="false" />
-          </label>
-          <label class="menuField">비밀번호
-            <input id="loginPassInput" type="password" maxlength="72" placeholder="비밀번호 입력" autocomplete="current-password" />
-          </label>
-          <div class="menuActionsTri">
-            <button id="authLoginBtn" class="primary">로그인</button>
-            <button id="authRegisterOpenBtn">회원가입</button>
+        <div class="authStack">
+          <div class="authBox">
+            <div class="authBoxTitle">축구게임 개요</div>
+            <div class="authSummary">
+              모바일 화면에 맞춰 버튼으로 화면을 이동하는 테스트용 로그인 화면입니다.
+              <ul>
+                <li>회원가입 완료 시 로그인 화면으로 자동 이동</li>
+                <li>로그인 성공 후에만 시작 화면 표시</li>
+                <li>개인정보 정책은 팝업에서 거절/동의 선택</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="authBox">
+            <div class="authBoxTitle">로그인</div>
+            <label class="menuField">아이디
+              <input id="loginIdInput" type="text" maxlength="24" placeholder="아이디 입력" autocomplete="username" autocapitalize="off" spellcheck="false" />
+            </label>
+            <label class="menuField">비밀번호
+              <input id="loginPassInput" type="password" maxlength="72" placeholder="비밀번호 입력" autocomplete="current-password" />
+            </label>
+            <div class="authButtons">
+              <button id="authLoginBtn" class="primary">로그인</button>
+              <button id="authRegisterOpenBtn">회원가입</button>
+            </div>
+          </div>
+
+          <div class="authBox">
+            <div class="authBoxTitle">진행 방법 설명</div>
+            <div class="authSummary">
+              회원가입 버튼으로 계정을 만든 뒤 로그인 정보를 입력하고 <strong>로그인</strong> 버튼을 누르면 그다음에 시작 화면이 열립니다.
+              개인정보 정책 버튼은 회원가입 창 하단에서 다시 확인할 수 있습니다.
+            </div>
           </div>
         </div>
 
@@ -1153,6 +1217,10 @@ grant execute on function public.delete_my_account() to authenticated;</pre>
       </div>
 
       <div id="homeView" class="menuView" hidden>
+        <div class="homeStartCard">
+          <div class="homeStartTitle">시작 화면</div>
+          <div class="homeStartText">로그인된 계정으로 시작 화면에 진입했습니다. 아래 버튼으로 게임을 시작하거나 계정을 관리할 수 있습니다.</div>
+        </div>
         <div class="menuActions">
           <button id="newGameBtn" class="primary">게임 시작</button>
           <button id="logoutBtn">로그아웃</button>
@@ -1175,32 +1243,37 @@ grant execute on function public.delete_my_account() to authenticated;</pre>
         <div>
           <div class="menuEyebrow">CREATE ACCOUNT</div>
           <h2>회원가입</h2>
-          <div class="policyMeta">아이디 · 비밀번호 · 닉네임 입력</div>
+          <div class="policyMeta">아이디 · 비밀번호 · 비밀번호 재확인 · 닉네임 입력</div>
         </div>
         <button id="registerCloseBtn" class="small">닫기</button>
       </div>
       <div class="menuView" style="margin-top:14px;">
         <div class="menuTwoCol">
           <label class="menuField">아이디
-            <input id="registerIdInput" type="text" maxlength="24" placeholder="로그인에 사용할 아이디" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            <input id="registerIdInput" type="text" maxlength="24" placeholder="한글/알파벳소문자/숫자" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            <div class="fieldRule">허용: 한글, 영문 소문자, 숫자 · 4~24자</div>
           </label>
           <label class="menuField">비밀번호
-            <input id="registerPassInput" type="password" maxlength="72" placeholder="6자 이상 권장" autocomplete="new-password" />
+            <input id="registerPassInput" type="password" maxlength="72" placeholder="알파벳소문자/숫자/특수문자" autocomplete="new-password" />
+            <div class="fieldRule">허용: 영문 소문자, 숫자, 특수문자 · 6자 이상</div>
           </label>
         </div>
-        <div class="menuField">
+        <div class="menuTwoCol">
+          <label class="menuField">비밀번호 재확인
+            <input id="registerPassConfirmInput" type="password" maxlength="72" placeholder="비밀번호를 다시 입력" autocomplete="new-password" />
+            <div id="registerPassMatch" class="inlineStatus">확인 전</div>
+          </label>
           <label class="menuField">닉네임
-            <input id="registerNameInput" type="text" maxlength="16" placeholder="게임 내 표시 이름" autocomplete="nickname" />
+            <input id="registerNameInput" type="text" maxlength="16" placeholder="한글/영어/숫자/특수문자" autocomplete="nickname" />
+            <div class="fieldRule">공백 없이 2~16자</div>
           </label>
         </div>
-        <div class="menuCheck">
-          <button id="authPolicyViewBtn" type="button" class="small">개인정보 처리방침 보기</button>
-          <div class="menuHint">회원가입 정보를 입력한 뒤 <strong>가입완료</strong>를 누르세요. 개인정보 처리방침 선택 전이면 팝업이 열립니다. <strong>동의</strong>를 누른 뒤 다시 <strong>가입완료</strong>를 누르면 실제 회원가입이 진행됩니다.</div>
-        </div>
-        <div class="menuActions">
+        <div class="menuHint">개인정보 동의는 팝업창에서 처리됩니다. 정책 내용을 확인하려면 개인정보 정책 버튼을 누르거나, 바로 가입완료를 눌러 팝업을 연 뒤 동의할 수 있습니다. 가입이 끝나면 로그인 화면으로 자동 이동합니다.</div>
+        <div class="menuActionsTri">
+          <button id="authPolicyViewBtn" type="button" class="small">개인정보 정책</button>
           <button id="authRegisterBtn" class="primary">가입완료</button>
         </div>
-        <div id="registerStatus" class="menuStatus dim">회원가입 안내가 여기에 표시됩니다.</div>
+        <div id="registerStatus" class="menuStatus dim">회원가입 진행 상태가 여기에 표시됩니다.</div>
       </div>
     </div>
   `;
@@ -1223,28 +1296,26 @@ grant execute on function public.delete_my_account() to authenticated;</pre>
       <div class="policyBody">
         <section>
           <h3>1. 수집 항목</h3>
-          <div>회원가입, 로그인, 랭킹, 접속자 수, 채팅 제공을 위해 다음 정보를 저장할 수 있습니다.</div>
+          <div>회원가입과 로그인 제공을 위해 아래 범위의 정보만 처리합니다.</div>
           <ul>
             <li>아이디</li>
-            <li>비밀번호 인증용 내부 계정 정보</li>
+            <li>비밀번호 인증 정보</li>
             <li>닉네임</li>
-            <li>이메일 주소(향후 임시 비밀번호 발송용)</li>
-            <li>최고 웨이브, 최고 킬 수</li>
-            <li>개인정보 처리방침 동의 시각 및 버전</li>
-            <li>접속 현황 및 채팅 메시지</li>
+            <li>게임 이용 기록(예: 최고 웨이브, 최고 킬 수)</li>
+            <li>개인정보 정책 동의 시각 및 버전</li>
           </ul>
         </section>
         <section>
           <h3>2. 이용 목적</h3>
-          <div>계정 식별, 로그인 유지, 최고 기록 저장, 온라인 랭킹, 현재 접속자 수 표시, 전체 채팅 제공, 비밀번호 재설정 준비를 위한 최소 범위 정보만 사용합니다.</div>
+          <div>계정 식별, 로그인 처리, 게임 기록 저장, 서비스 운영 안정화, 부정 사용 방지를 위한 최소한의 목적에만 사용합니다.</div>
         </section>
         <section>
-          <h3>3. 보관 방식</h3>
-          <div>본 버전은 Supabase를 사용합니다. 로그인용 아이디는 내부 인증용 별칭으로 처리되고, 사용자가 입력한 이메일 주소는 복구 이메일로 별도 저장됩니다.</div>
+          <h3>3. 보관 및 보호</h3>
+          <div>수집된 정보는 서비스 운영 환경에 저장되며, 권한이 없는 접근을 막기 위한 기본 보호 조치를 적용합니다. 법령 또는 서비스 운영상 필요 범위를 넘는 정보는 요구하지 않습니다.</div>
         </section>
         <section>
-          <h3>4. 이용자 선택</h3>
-          <div>회원가입 진행 시 체크박스를 선택한 뒤, 이 창 아래의 <strong>거절하기</strong> 또는 <strong>동의하기</strong> 버튼으로 최종 의사를 표시해야 합니다. 거절하면 동의가 되지 않은 상태로 돌아갑니다.</div>
+          <h3>4. 이용자 선택 및 권리</h3>
+          <div>이용자는 동의를 거절할 수 있으며, 거절 시 회원가입은 진행되지 않습니다. 동의 후에도 서비스 내 탈퇴 기능을 통해 계정 삭제를 요청할 수 있습니다.</div>
         </section>
       </div>
       <div class="menuCheck" style="margin-top:14px;">
@@ -1288,15 +1359,20 @@ function saveSupabaseConfig(config){
 }
 
 function normalizeUsername(name=''){
-  return name.trim().replace(/\s+/g, ' ').slice(0, 16);
+  return String(name || '').trim().replace(/\s+/g, '').slice(0, 16);
+}
+
+function isValidDisplayName(value=''){
+  const clean = normalizeUsername(value);
+  return /^[A-Za-z0-9가-힣ㄱ-ㅎㅏ-ㅣ`~!@#$%^&*()\-_=+\[\]{}\\|;:'\",.<>/?]{2,16}$/.test(clean);
 }
 
 function normalizeLoginId(value=''){
-  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 24);
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9가-힣ㄱ-ㅎㅏ-ㅣ]/g, '').slice(0, 24);
 }
 
 function isValidLoginId(value=''){
-  return /^[a-z0-9._-]{4,24}$/.test(normalizeLoginId(value));
+  return /^[a-z0-9가-힣ㄱ-ㅎㅏ-ㅣ]{4,24}$/.test(normalizeLoginId(value));
 }
 
 function normalizeRecoveryEmail(value=''){
@@ -1304,17 +1380,49 @@ function normalizeRecoveryEmail(value=''){
 }
 
 function isValidRecoveryEmail(value=''){
-  return true;
+  const clean = normalizeRecoveryEmail(value);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean);
+}
+
+function isValidPassword(value=''){
+  const pass = String(value || '');
+  return /^[a-z0-9`~!@#$%^&*()\-_=+\[\]{}\\|;:'\",.<>/?]{6,72}$/.test(pass);
+}
+
+function base64UrlEncodeUtf8(text=''){
+  try{
+    const bytes = new TextEncoder().encode(String(text || ''));
+    let bin = '';
+    for(const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  } catch(err){
+    return '';
+  }
+}
+
+function base64UrlDecodeUtf8(text=''){
+  try{
+    const normalized = String(text || '').replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4);
+    const bin = atob(padded);
+    const bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch(err){
+    return '';
+  }
 }
 
 function loginIdToEmailAlias(loginId=''){
   const clean = normalizeLoginId(loginId);
-  return clean ? `${clean}@zdf-id.local` : '';
+  if(!clean) return '';
+  if(/^[a-z0-9._-]{4,24}$/.test(clean)) return `${clean}@players.example.com`;
+  return `u-${base64UrlEncodeUtf8(clean)}@players.example.com`;
 }
 
 function emailAliasToLoginId(email=''){
   const clean = String(email || '').trim().toLowerCase();
   const local = clean.includes('@') ? clean.split('@')[0] : clean;
+  if(local.startsWith('u-')) return normalizeLoginId(base64UrlDecodeUtf8(local.slice(2)));
   return normalizeLoginId(local);
 }
 
@@ -1410,12 +1518,13 @@ function closePolicyModal(){
 function openRegisterModal(resetFlow=false){
   if(resetFlow) resetRegisterConsentState();
   if(registerModal) registerModal.classList.add('open');
+  updatePasswordMatchState();
   if(state.registerPolicyApproved){
-    setRegisterStatus('개인정보 처리방침 동의가 완료되었습니다. 가입완료 버튼을 누르면 회원가입이 진행됩니다.', true);
+    setRegisterStatus('개인정보 정책 동의가 완료되었습니다. 가입완료 버튼을 누르면 회원가입이 진행됩니다.', true);
   } else if(state.registerPolicyRejected){
-    setRegisterStatus('개인정보 처리방침에 아직 동의하지 않았습니다. 가입완료를 누르면 미동의 메시지가 표시됩니다. 정책 보기로 다시 확인할 수 있습니다.');
+    setRegisterStatus('개인정보 정책에 아직 동의하지 않았습니다. 가입완료를 누르면 미동의 메시지가 표시됩니다. 정책 버튼으로 다시 확인할 수 있습니다.');
   } else {
-    setRegisterStatus('아이디 · 비밀번호 · 닉네임 · 이메일 주소를 입력한 뒤 가입완료를 누르세요. 처음 한 번은 개인정보 처리방침 창이 열립니다.', false, true);
+    setRegisterStatus('아이디 · 비밀번호 · 비밀번호 재확인 · 닉네임을 입력한 뒤 가입완료를 누르세요. 처음 한 번은 개인정보 정책 팝업이 열립니다.', false, true);
   }
 }
 
@@ -1436,6 +1545,24 @@ function setAuthStatus(text, ok=false){
   authStatus.textContent = text || '';
   authStatus.classList.toggle('ok', !!ok);
   authStatus.classList.toggle('isHidden', !text);
+}
+
+function updatePasswordMatchState(){
+  if(!registerPassMatch) return;
+  const password = String(registerPassInput?.value || '');
+  const confirm = String(registerPassConfirmInput?.value || '');
+  registerPassMatch.classList.remove('ok', 'bad');
+  if(!password && !confirm){
+    registerPassMatch.textContent = '확인 전';
+    return;
+  }
+  if(password && confirm && password === confirm){
+    registerPassMatch.textContent = '일치';
+    registerPassMatch.classList.add('ok');
+    return;
+  }
+  registerPassMatch.textContent = '불일치';
+  registerPassMatch.classList.add('bad');
 }
 
 function setSupabaseStatus(text, ok=false, dim=false){
@@ -1890,26 +2017,29 @@ function openMenu(view='auto'){
 }
 
 function closeMenu(){
-  if(!state.currentUser) return;
+  if(!state.authFlowUnlocked) return;
   state.menuOpen = false;
   menuLayer.classList.remove('open');
   closeRegisterModal();
 }
 
 function renderMenu(view='auto'){
-  const forceAuth = view === 'auth' || !state.currentUser;
+  const forceAuth = view === 'auth' || !state.authFlowUnlocked;
+  updateAuthGate();
   authView.hidden = !forceAuth;
   homeView.hidden = forceAuth;
   menuCloseBtn.style.display = forceAuth ? 'none' : '';
   if(forceAuth){
-    menuTitle.textContent = 'ONLINE LOGIN';
-    menuSubtitle.textContent = '아이디와 비밀번호로 로그인합니다. 회원가입은 버튼을 눌러 별도 창에서 진행합니다.';
-    authNotice.textContent = '첫 화면은 로그인과 회원가입만 사용합니다. 회원가입이 완료되면 다시 로그인 화면으로 자동 이동합니다.';
+    if(menuEyebrow) menuEyebrow.textContent = 'LOGIN · ONLINE ACCOUNT';
+    menuTitle.textContent = '축구게임 로그인';
+    menuSubtitle.textContent = '로그인 전에는 로그인 화면과 회원가입만 표시됩니다. 로그인 성공 후에만 시작 화면이 열립니다.';
+    authNotice.textContent = '회원가입이 완료되면 로그인 화면으로 자동 이동합니다. 로그인 성공 후에만 시작 화면으로 이동합니다.';
     return;
   }
   const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
-  menuTitle.textContent = 'PLAYER MENU · ONLINE';
-  menuSubtitle.textContent = '온라인 계정이 연결된 상태입니다. 새 게임을 시작하거나 로그아웃할 수 있습니다.';
+  if(menuEyebrow) menuEyebrow.textContent = 'START SCREEN · ONLINE ACCOUNT';
+  menuTitle.textContent = '시작 화면';
+  menuSubtitle.textContent = '로그인에 성공했습니다. 이제 시작 화면에서 게임 시작 또는 계정 관리를 선택할 수 있습니다.';
   homeUserName.textContent = profile.name;
   void refreshLeaderboard();
   void refreshPresence();
@@ -1940,16 +2070,27 @@ async function applyOnlineUser(user, preferredName='', preferredRecoveryEmail=''
 function validateRegisterForm(){
   const loginId = normalizeLoginId(registerIdInput.value || '');
   const password = String(registerPassInput.value || '');
+  const passwordConfirm = String(registerPassConfirmInput?.value || '');
   const displayName = normalizeUsername(registerNameInput.value || '');
-  if(!isValidLoginId(loginId)){ setRegisterStatus('회원가입 아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); setAuthStatus('회원가입 아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); return null; }
-  if(password.length < 6){ setRegisterStatus('회원가입 비밀번호는 6자 이상으로 입력하세요.'); setAuthStatus('회원가입 비밀번호는 6자 이상으로 입력하세요.'); return null; }
-  if(displayName.length < 2){ setRegisterStatus('닉네임은 2자 이상이어야 합니다.'); setAuthStatus('닉네임은 2자 이상이어야 합니다.'); return null; }
-  return { loginId, password, displayName, recoveryEmail: '' };
+  const recoveryEmail = loginIdToEmailAlias(loginId);
+  if(!isValidLoginId(loginId)){ setRegisterStatus('회원가입 아이디는 한글, 영문 소문자, 숫자 조합 4~24자여야 합니다.'); setAuthStatus('회원가입 아이디는 한글, 영문 소문자, 숫자 조합 4~24자여야 합니다.'); return null; }
+  if(!isValidPassword(password)){ setRegisterStatus('비밀번호는 영문 소문자, 숫자, 특수문자만 사용해 6자 이상 입력하세요.'); setAuthStatus('비밀번호는 영문 소문자, 숫자, 특수문자만 사용해 6자 이상 입력하세요.'); return null; }
+  if(password !== passwordConfirm){ setRegisterStatus('비밀번호 재확인이 일치하지 않습니다.'); setAuthStatus('비밀번호 재확인이 일치하지 않습니다.'); return null; }
+  if(!isValidDisplayName(displayName)){ setRegisterStatus('닉네임은 한글/영어/숫자/특수문자 조합 2~16자이며 공백은 사용할 수 없습니다.'); setAuthStatus('닉네임은 한글/영어/숫자/특수문자 조합 2~16자이며 공백은 사용할 수 없습니다.'); return null; }
+  return { loginId, password, displayName, recoveryEmail };
 }
 
 async function loginOnlineUser(){
   const loginId = normalizeLoginId(loginIdInput.value || '');
   const pass = String(loginPassInput.value || '');
+  if(state.currentUser && !loginId && !pass){
+    state.authFlowUnlocked = true;
+    updateAuthGate();
+    setAuthStatus('로그인 버튼을 눌러 시작 화면을 열었습니다.', true);
+    openMenu('home');
+    showBanner('시작 화면 열림', 1.2);
+    return;
+  }
   const authEmail = loginIdToEmailAlias(loginId);
   if(!loginId || !pass){
     setAuthStatus('로그인 정보가 없습니다. 먼저 회원가입을 진행하세요.');
@@ -1957,7 +2098,7 @@ async function loginOnlineUser(){
     return;
   }
   if(!initSupabaseClient()) return;
-  if(!isValidLoginId(loginId)){ setAuthStatus('아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); return; }
+  if(!isValidLoginId(loginId)){ setAuthStatus('아이디는 한글, 영문 소문자, 숫자 조합 4~24자여야 합니다.'); return; }
   if(pass.length < 4){ setAuthStatus('비밀번호를 입력하세요.'); return; }
   try{
     const { data, error } = await state.supabase.auth.signInWithPassword({ email: authEmail, password: pass });
@@ -1977,6 +2118,8 @@ async function loginOnlineUser(){
       return;
     }
     await applyOnlineUser(user);
+    state.authFlowUnlocked = true;
+    updateAuthGate();
     loginPassInput.value = '';
     setAuthStatus(`@${loginId} 계정으로 로그인했습니다.`, true);
     openMenu('home');
@@ -2009,7 +2152,7 @@ async function registerOnlineUser(form){
         data: {
           login_id: loginId,
           display_name: form.displayName,
-          recovery_email: authEmail,
+          recovery_email: form.recoveryEmail,
           privacy_version: privacyPolicyVersion(),
           privacy_agreed_at: agreedAt,
         },
@@ -2021,7 +2164,9 @@ async function registerOnlineUser(form){
     loginPassInput.value = form.password;
     registerIdInput.value = '';
     registerPassInput.value = '';
+    if(registerPassConfirmInput) registerPassConfirmInput.value = '';
     registerNameInput.value = '';
+    updatePasswordMatchState();
 
     closePolicyModal();
     closeRegisterModal(false);
@@ -2061,16 +2206,16 @@ function requestRegisterApproval(){
   }
 
   if(state.registerPolicyRejected === true){
-    setRegisterStatus('정보 동의가 안되었습니다. 개인정보 처리방침에 동의해야 가입할 수 있습니다.');
-    setAuthStatus('정보 동의가 안되었습니다. 개인정보 처리방침에 동의해야 가입할 수 있습니다.');
+    setRegisterStatus('정보 동의가 안되었습니다. 개인정보 정책에 동의해야 가입할 수 있습니다.');
+    setAuthStatus('정보 동의가 안되었습니다. 개인정보 정책에 동의해야 가입할 수 있습니다.');
     showBanner('정보 동의가 안되었습니다.', 1.6);
     return;
   }
 
   openPolicyModal();
-  setRegisterStatus('개인정보 처리방침을 확인하고 거절 또는 동의를 선택하세요.', false, true);
-  setAuthStatus('개인정보 처리방침을 확인하고 거절 또는 동의를 선택하세요.');
-  showBanner('개인정보 처리방침 확인', 1.2);
+  setRegisterStatus('개인정보 정책을 확인하고 거절 또는 동의를 선택하세요.', false, true);
+  setAuthStatus('개인정보 정책을 확인하고 거절 또는 동의를 선택하세요.');
+  showBanner('개인정보 정책 확인', 1.2);
 }
 
 function approvePolicyAndRegister(){
@@ -2086,8 +2231,8 @@ function approvePolicyAndRegister(){
   if(policyConsentCheck) policyConsentCheck.checked = true;
   closePolicyModal();
   openRegisterModal(false);
-  setRegisterStatus('개인정보 처리방침 동의가 완료되었습니다. 이제 가입완료를 누르세요.', true);
-  setAuthStatus('개인정보 처리방침 동의가 완료되었습니다. 이제 가입완료를 누르세요.', true);
+  setRegisterStatus('개인정보 정책 동의가 완료되었습니다. 이제 가입완료를 누르세요.', true);
+  setAuthStatus('개인정보 정책 동의가 완료되었습니다. 이제 가입완료를 누르세요.', true);
   showBanner('동의 완료', 1.1);
 }
 
@@ -2098,8 +2243,8 @@ function rejectPolicyAgreement(){
   if(policyConsentCheck) policyConsentCheck.checked = false;
   closePolicyModal();
   openRegisterModal(false);
-  setRegisterStatus('개인정보 처리방침에 동의하지 않았습니다. 가입완료를 누르면 미동의 메시지가 표시됩니다.');
-  setAuthStatus('개인정보 처리방침에 동의하지 않았습니다.');
+  setRegisterStatus('개인정보 정책에 동의하지 않았습니다. 가입완료를 누르면 미동의 메시지가 표시됩니다.');
+  setAuthStatus('개인정보 정책에 동의하지 않았습니다.');
   showBanner('동의 거절', 1.1);
 }
 
@@ -2116,6 +2261,8 @@ async function logoutCurrentUser(){
   stopOnlineLoops();
   state.currentUser = null;
   state.profileCache = null;
+  state.authFlowUnlocked = false;
+  updateAuthGate();
   updateUserBadge();
   renderLeaderboard([]);
   renderPresence([], 0);
@@ -2138,6 +2285,8 @@ async function deleteCurrentAccount(){
     stopOnlineLoops();
     state.currentUser = null;
     state.profileCache = null;
+    state.authFlowUnlocked = false;
+    updateAuthGate();
     updateUserBadge();
     renderLeaderboard([]);
     renderPresence([], 0);
@@ -2173,6 +2322,11 @@ function persistUserStats(){
 }
 
 function beginNewGame(){
+  if(!state.currentUser){
+    openMenu('auth');
+    setAuthStatus('로그인 후 시작 화면과 게임이 열립니다.');
+    return;
+  }
   persistUserStats();
   resetGame({skipProfileSave:true});
   closeMenu();
@@ -2194,8 +2348,11 @@ async function hydrateOnlineSession(){
 
 async function hydrateSession(){
   const ok = await hydrateOnlineSession();
+  state.authFlowUnlocked = false;
+  updateAuthGate();
   updateUserBadge();
-  openMenu(ok ? 'home' : 'auth');
+  openMenu('auth');
+  if(ok) setAuthStatus('로그인 버튼을 눌러 시작 화면을 열 수 있습니다.', true);
 }
 
 async function saveSupabaseSettingsFromInputs(){
@@ -4114,7 +4271,10 @@ function onEnemyKilled(e){
   loginPassInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
   loginIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
   registerNameInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
+  registerPassInput.addEventListener('input', updatePasswordMatchState);
+  if(registerPassConfirmInput) registerPassConfirmInput.addEventListener('input', updatePasswordMatchState);
   registerPassInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
+  if(registerPassConfirmInput) registerPassConfirmInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
   registerIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
   authPolicyViewBtn.addEventListener('click', openPolicyModal);
   policyCloseBtn.addEventListener('click', closePolicyModal);
