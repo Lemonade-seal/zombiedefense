@@ -964,6 +964,23 @@ function injectRuntimeUi(){
       .fieldPanels{left:12px;right:12px;top:12px;max-width:none}
       .chatComposer{grid-template-columns:1fr}
     }
+    .controls{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:5px;min-width:0;padding-bottom:2px}
+    .controls::-webkit-scrollbar{display:none}
+    .hudUserTools{display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-start;gap:5px;flex:0 0 auto;min-width:max-content}
+    .hudUserTools > *{flex:0 0 auto}
+    .userBadge{min-height:30px;padding:0 8px;font-size:10px;max-width:132px}
+    #app .controls > button,
+    #app .controls .hudUserTools > button{flex:0 0 auto;min-height:32px;padding:0 10px;font-size:12px;border-radius:10px}
+    #app .controls > button.small,
+    #app .controls .hudUserTools > button.small{min-height:30px;padding:0 9px;font-size:11px}
+    @media (min-width:768px){
+      .controls{gap:6px}
+      .userBadge{min-height:32px;max-width:150px}
+      #app .controls > button,
+      #app .controls .hudUserTools > button{min-height:34px;padding:0 11px;font-size:12px}
+      #app .controls > button.small,
+      #app .controls .hudUserTools > button.small{min-height:32px;padding:0 10px;font-size:11px}
+    }
   `;
   document.head.appendChild(runtimeStyle);
 
@@ -1030,7 +1047,7 @@ function injectRuntimeUi(){
       <div class="menuHeader">
         <div>
           <div id="menuEyebrow" class="menuEyebrow">LOGIN · ONLINE ACCOUNT</div>
-          <h1 id="menuTitle">축구게임 로그인</h1>
+          <h1 id="menuTitle">좀비 막기게임 로그인</h1>
           <p id="menuSubtitle" class="menuSubtitle">로그인 전에는 로그인과 회원가입만 표시됩니다. 로그인 성공 후에만 시작 화면이 열립니다.</p>
         </div>
         <button id="menuCloseBtn" class="small">닫기</button>
@@ -1039,12 +1056,13 @@ function injectRuntimeUi(){
       <div id="authView" class="menuView">
         <div class="authStack">
           <div class="authBox">
-            <div class="authBoxTitle">축구게임 개요</div>
+            <div class="authBoxTitle">좀비 막기게임 개요</div>
             <div class="authSummary">
-              모바일 화면에 맞춰 버튼으로 화면을 이동하는 테스트용 로그인 화면입니다.
+              모바일 화면에 맞춰 구성된 좀비 막기게임용 로그인 화면입니다.
               <ul>
                 <li>회원가입 완료 시 로그인 화면으로 자동 이동</li>
                 <li>로그인 성공 후에만 시작 화면 표시</li>
+                <li>전장으로 이동한 뒤 상단 시작 버튼을 눌러 웨이브 시작</li>
                 <li>개인정보 정책은 팝업에서 거절/동의 선택</li>
               </ul>
             </div>
@@ -1069,7 +1087,7 @@ function injectRuntimeUi(){
             <div class="authBoxTitle">진행 방법 설명</div>
             <div class="authSummary">
               회원가입 버튼으로 계정을 만든 뒤 <strong>가입한 이메일과 비밀번호</strong>로 로그인하면 그다음에 시작 화면이 열립니다.
-              아이디와 닉네임은 게임 프로필 데이터로 별도 저장됩니다.
+              전장으로 이동한 뒤 상단 시작 버튼을 눌러야 첫 웨이브가 시작됩니다.
             </div>
           </div>
         </div>
@@ -1221,11 +1239,10 @@ grant execute on function public.delete_my_account() to authenticated;</pre>
 
       <div id="homeView" class="menuView" hidden>
         <div class="homeStartCard">
-          <div class="homeStartTitle">시작 화면</div>
-          <div class="homeStartText">로그인된 계정으로 시작 화면에 진입했습니다. 아래 버튼으로 게임을 시작하거나 계정을 관리할 수 있습니다.</div>
+          <div class="homeStartText">로그인된 계정입니다. 아래 버튼으로 전장으로 이동한 뒤 상단 시작 버튼을 눌러 웨이브를 시작하세요.</div>
         </div>
         <div class="menuActions">
-          <button id="newGameBtn" class="primary">게임 시작</button>
+          <button id="newGameBtn" class="primary">전장으로 이동</button>
           <button id="logoutBtn">로그아웃</button>
           <button id="deleteAccountBtn" class="warn">회원탈퇴</button>
         </div>
@@ -1512,8 +1529,7 @@ function getCurrentProfile(){
 
 function currentUserLabel(){
   if(!state.currentUser) return '로그인 필요';
-  const loginId = state.currentUser.loginId ? `@${state.currentUser.loginId}` : '';
-  return `ONLINE · ${state.currentUser.name}${loginId ? ' · ' + loginId : ''}`;
+  return `ONLINE · ${state.currentUser.name}`;
 }
 
 function updateUserBadge(){
@@ -1651,7 +1667,6 @@ function renderPresence(items, count){
   presenceList.innerHTML = rows.map((row) => `
     <div class="presenceItem">
       <strong>${escapeHtml(row.display_name || 'PLAYER')}</strong>
-      <span>@${escapeHtml(row.login_id || '')}</span>
     </div>
   `).join('');
 }
@@ -1667,7 +1682,7 @@ function renderChatMessages(items){
   const html = list.map((row) => `
     <div class="chatItem">
       <div class="chatItemHead">
-        <span>${escapeHtml(row.display_name || 'PLAYER')} · @${escapeHtml(row.login_id || '')}</span>
+        <span>${escapeHtml(row.display_name || 'PLAYER')}</span>
         <span>${formatStamp(row.created_at || '')}</span>
       </div>
       <div class="chatBody">${escapeHtml(row.message || '')}</div>
@@ -2071,7 +2086,7 @@ function renderMenu(view='auto'){
   menuCloseBtn.style.display = forceAuth ? 'none' : '';
   if(forceAuth){
     if(menuEyebrow) menuEyebrow.textContent = 'LOGIN · ONLINE ACCOUNT';
-    menuTitle.textContent = '축구게임 로그인';
+    menuTitle.textContent = '좀비 막기게임 로그인';
     menuSubtitle.textContent = '로그인 전에는 로그인 화면과 회원가입만 표시됩니다. 로그인 성공 후에만 시작 화면이 열립니다.';
     authNotice.textContent = '회원가입이 완료되면 로그인 화면으로 자동 이동합니다. 로그인 성공 후에만 시작 화면으로 이동합니다.';
     return;
@@ -2079,7 +2094,7 @@ function renderMenu(view='auto'){
   const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
   if(menuEyebrow) menuEyebrow.textContent = 'START SCREEN · ONLINE ACCOUNT';
   menuTitle.textContent = '시작 화면';
-  menuSubtitle.textContent = '로그인에 성공했습니다. 이제 시작 화면에서 게임 시작 또는 계정 관리를 선택할 수 있습니다.';
+  menuSubtitle.textContent = '로그인에 성공했습니다. 아래에서 전장 이동 또는 계정 관리를 선택할 수 있습니다.';
   homeUserName.textContent = profile.name;
   void refreshLeaderboard();
   void refreshPresence();
@@ -2404,7 +2419,7 @@ function beginNewGame(){
   persistUserStats();
   resetGame({skipProfileSave:true});
   closeMenu();
-  startGame();
+  showBanner('배치를 마친 뒤 상단 시작 버튼을 누르세요.', 1.8);
 }
 
 async function hydrateOnlineSession(){
@@ -2781,7 +2796,7 @@ function resetGame(options={}){
     state.spawnTimer = 2.95;
     state.betweenWaves = 2.9;
     pauseBtn.textContent = '정지';
-    showBanner('배치 후 방어를 시작하세요.', 1.6);
+    showBanner('웨이브 준비 중', 1.2);
   }
   function earlyWaveSpeedScale(wave = state.wave){
     const t = Math.max(0, Math.min(1, (Math.max(1, wave) - 1) / 99));
