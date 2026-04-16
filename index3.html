@@ -208,9 +208,9 @@
   const SUPABASE_CONFIG_KEY = 'zdf_supabase_config_v2';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
     // 예: 'https://your-project.supabase.co'
-    url: '',
+    url: 'https://tsfrskjgowlfxxbreptz.supabase.co',
     // 예: 'eyJ...'
-    anonKey: '',
+    anonKey: 'sb_publishable_MQt3vs1ubjSpHVxs4nLWvw_9RyeviIP',
   });
   const SUPABASE_TABLE = 'game_profiles';
   const SUPABASE_PRESENCE_TABLE = 'game_presence';
@@ -261,6 +261,7 @@
   const policyConsentCheck = document.getElementById('policyConsentCheck');
   const authLoginBtn = document.getElementById('authLoginBtn');
   const authRegisterBtn = document.getElementById('authRegisterBtn');
+  const registerStatus = document.getElementById('registerStatus');
   const authStatus = document.getElementById('authStatus');
   const menuTitle = document.getElementById('menuTitle');
   const menuSubtitle = document.getElementById('menuSubtitle');
@@ -269,6 +270,7 @@
   const leaderboardList = document.getElementById('leaderboardList');
   const newGameBtn = document.getElementById('newGameBtn');
   const logoutBtn = document.getElementById('logoutBtn');
+  const deleteAccountBtn = document.getElementById('deleteAccountBtn');
 
 
   const PAGE_SIZE = 4;
@@ -434,6 +436,10 @@ const state = {
   state.presence = [];
   state.onlineCount = 0;
   state.pendingRegisterForm = null;
+  state.registerPolicyApproved = false;
+  state.registerPolicyRejected = false;
+  state.registerPolicyAgreedAt = '';
+  state.registerSubmitInFlight = false;
   state.presenceTimer = null;
   state.leaderboardTimer = null;
   state.chatTimer = null;
@@ -442,6 +448,7 @@ const state = {
   state.chatLastRendered = '';
   state.rankPanelOpen = false;
   state.presencePanelOpen = false;
+  state.authSubscription = null;
 
 
 const installMap = Object.fromEntries(INSTALLS.map(i => [i.key, i]));
@@ -921,7 +928,6 @@ function injectRuntimeUi(){
   userTools.className = 'hudUserTools';
   userTools.innerHTML = `
     <div id="userBadge" class="userBadge">로그인 필요</div>
-    <div id="appOnlineStatus" class="appStatusBadge">오프라인</div>
     <button id="menuBtn" class="small">메뉴</button>
     <button id="rankToggleBtn" class="small">랭킹</button>
     <button id="onlineUsersBtn" class="small">접속자</button>
@@ -982,36 +988,36 @@ function injectRuntimeUi(){
         <div>
           <div class="menuEyebrow">START MENU · ONLINE ACCOUNT</div>
           <h1 id="menuTitle">ZOMBIE DEFENSE</h1>
-          <p id="menuSubtitle" class="menuSubtitle">시작 화면은 로그인 전용입니다. 로그인 후 새 게임을 시작하세요.</p>
+          <p id="menuSubtitle" class="menuSubtitle">첫 화면은 로그인과 회원가입만 표시됩니다. 로그인 후 게임을 시작하세요.</p>
         </div>
         <button id="menuCloseBtn" class="small">닫기</button>
       </div>
 
       <div id="authView" class="menuView">
-        <div id="authNotice" class="menuNotice">아이디와 비밀번호로 로그인합니다. 회원가입은 아래 버튼을 눌러 별도 창에서 진행합니다.</div>
-
         <div class="menuSection">
           <div class="menuSectionTitle">로그인</div>
           <label class="menuField">아이디
-            <input id="loginIdInput" type="text" maxlength="24" placeholder="영문 소문자, 숫자, . _ - 조합 4~24자" autocomplete="username" autocapitalize="off" spellcheck="false" />
+            <input id="loginIdInput" type="text" maxlength="24" placeholder="아이디 입력" autocomplete="username" autocapitalize="off" spellcheck="false" />
           </label>
           <label class="menuField">비밀번호
             <input id="loginPassInput" type="password" maxlength="72" placeholder="비밀번호 입력" autocomplete="current-password" />
           </label>
-          <div class="menuActions">
+          <div class="menuActionsTri">
             <button id="authLoginBtn" class="primary">로그인</button>
             <button id="authRegisterOpenBtn">회원가입</button>
           </div>
         </div>
 
-        <details class="menuHelp">
+        <input id="supabaseUrlInput" type="hidden" />
+        <textarea id="supabaseAnonKeyInput" hidden></textarea>
+        <div id="authNotice" class="menuNotice isHidden"></div>
+        <div id="supabaseStatus" class="menuStatus dim isHidden">이 파일 안의 SUPABASE_BOOT_CONFIG 값이 채워지면 실행 즉시 자동 연결됩니다.</div>
+        <div id="authStatus" class="menuStatus isHidden">온라인 계정으로만 동작합니다.</div>
+
+        <details class="menuHelp isHidden">
           <summary>온라인 연결 상태</summary>
           <div class="menuConfig">
             <div class="menuConfigTitle">SUPABASE 자동 연결</div>
-            <input id="supabaseUrlInput" type="hidden" />
-            <textarea id="supabaseAnonKeyInput" hidden></textarea>
-            <div id="supabaseStatus" class="menuStatus dim">이 파일 안의 SUPABASE_BOOT_CONFIG 값이 채워지면 실행 즉시 자동 연결됩니다.</div>
-            <div class="menuHint">브라우저가 열리면 저장된 세션을 자동 복원하고, 랭킹·접속자·채팅은 자동 동기화됩니다.</div>
             <details class="menuHelp">
               <summary>Supabase SQL 설정 보기</summary>
               <pre class="sqlBox">create table if not exists public.game_profiles (
@@ -1120,33 +1126,41 @@ create index if not exists game_presence_seen_idx
 on public.game_presence (last_seen desc);
 
 create index if not exists game_chat_messages_created_idx
-on public.game_chat_messages (created_at desc);</pre>
+on public.game_chat_messages (created_at desc);
+
+create or replace function public.delete_my_account()
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  delete from auth.users where id = uid;
+end;
+$$;
+
+revoke all on function public.delete_my_account() from public;
+grant execute on function public.delete_my_account() to authenticated;</pre>
             </details>
           </div>
         </details>
 
-        <div id="authStatus" class="menuStatus">온라인 계정으로만 동작합니다.</div>
       </div>
 
       <div id="homeView" class="menuView" hidden>
-        <div class="profileHero">
-          <div id="homeUserName" class="name">-</div>
-          <div class="sub">랭킹, 접속자 수, 채팅은 게임 화면 상단 버튼에서 열 수 있습니다.</div>
-        </div>
-        <div class="menuGridBtns">
-          <button id="newGameBtn" class="primary">새 게임 시작</button>
+        <div class="menuActions">
+          <button id="newGameBtn" class="primary">게임 시작</button>
           <button id="logoutBtn">로그아웃</button>
+          <button id="deleteAccountBtn" class="warn">회원탈퇴</button>
         </div>
-        <div class="leaderboardBox">
-          <div class="leaderboardHead">
-            <span>온라인 랭킹</span>
-            <span>최고 웨이브 · 최고 킬</span>
-          </div>
-          <div id="leaderboardList" class="leaderboardList">
-            <div class="menuHint">로그인 후 랭킹을 불러옵니다.</div>
-          </div>
-        </div>
-        <div class="menuFoot">새 게임을 누르면 현재 전장이 초기화되고 처음부터 시작합니다. 계정은 유지되며 최고 기록은 서버에 남습니다.</div>
+        <div id="homeUserName" class="isHidden">-</div>
+        <div id="leaderboardList" class="isHidden"></div>
       </div>
     </div>
   `;
@@ -1185,11 +1199,12 @@ on public.game_chat_messages (created_at desc);</pre>
         </div>
         <div class="menuCheck">
           <button id="authPolicyViewBtn" type="button" class="small">개인정보 처리방침 보기</button>
-          <div class="menuHint">회원가입을 누르면 개인정보 처리방침 창이 열립니다. 그 창 안의 체크박스를 선택하고 <strong>동의하기</strong>를 눌러야 가입이 진행됩니다.</div>
+          <div class="menuHint">회원가입 정보를 입력한 뒤 <strong>가입완료</strong>를 누르세요. 개인정보 처리방침 선택 전이면 팝업이 열립니다. <strong>동의</strong>를 누른 뒤 다시 <strong>가입완료</strong>를 누르면 실제 회원가입이 진행됩니다.</div>
         </div>
         <div class="menuActions">
-          <button id="authRegisterBtn" class="primary">회원가입</button>
+          <button id="authRegisterBtn" class="primary">가입완료</button>
         </div>
+        <div id="registerStatus" class="menuStatus dim">회원가입 안내가 여기에 표시됩니다.</div>
       </div>
     </div>
   `;
@@ -1233,7 +1248,7 @@ on public.game_chat_messages (created_at desc);</pre>
         </section>
         <section>
           <h3>4. 이용자 선택</h3>
-          <div>회원가입 진행 시 체크박스를 선택한 뒤, 이 창 아래의 <strong>거절하기</strong> 또는 <strong>동의하기</strong> 버튼으로 최종 의사를 표시해야 합니다. 거절하면 가입이 취소됩니다.</div>
+          <div>회원가입 진행 시 체크박스를 선택한 뒤, 이 창 아래의 <strong>거절하기</strong> 또는 <strong>동의하기</strong> 버튼으로 최종 의사를 표시해야 합니다. 거절하면 동의가 되지 않은 상태로 돌아갑니다.</div>
         </section>
       </div>
       <div class="menuCheck" style="margin-top:14px;">
@@ -1360,7 +1375,6 @@ function currentUserLabel(){
 
 function updateUserBadge(){
   if(userBadge) userBadge.textContent = currentUserLabel();
-  if(appOnlineStatus) appOnlineStatus.textContent = state.currentUser ? '온라인 연결' : '오프라인';
 }
 
 function formatStamp(iso=''){
@@ -1380,26 +1394,53 @@ function formatPolicyConsent(profile){
   return `${privacyPolicyVersion()} · ${formatStamp(profile.privacyAgreedAt)}`;
 }
 
+function resetRegisterConsentState(){
+  state.pendingRegisterForm = null;
+  state.registerPolicyApproved = false;
+  state.registerPolicyRejected = false;
+  state.registerPolicyAgreedAt = '';
+  state.registerSubmitInFlight = false;
+}
+
 function openPolicyModal(){
-  if(policyConsentCheck) policyConsentCheck.checked = false;
+  if(policyConsentCheck) policyConsentCheck.checked = !!state.registerPolicyApproved;
   if(policyModal) policyModal.classList.add('open');
 }
 
 function closePolicyModal(){
   if(policyModal) policyModal.classList.remove('open');
+  if(policyConsentCheck) policyConsentCheck.checked = !!state.registerPolicyApproved;
 }
 
-function openRegisterModal(){
+function openRegisterModal(resetFlow=false){
+  if(resetFlow) resetRegisterConsentState();
   if(registerModal) registerModal.classList.add('open');
+  if(state.registerPolicyApproved){
+    setRegisterStatus('개인정보 처리방침 동의가 완료되었습니다. 가입완료 버튼을 누르면 회원가입이 진행됩니다.', true);
+  } else if(state.registerPolicyRejected){
+    setRegisterStatus('개인정보 처리방침에 아직 동의하지 않았습니다. 가입완료를 누르면 미동의 메시지가 표시됩니다. 정책 보기로 다시 확인할 수 있습니다.');
+  } else {
+    setRegisterStatus('아이디 · 비밀번호 · 닉네임 · 이메일 주소를 입력한 뒤 가입완료를 누르세요. 처음 한 번은 개인정보 처리방침 창이 열립니다.', false, true);
+  }
 }
 
-function closeRegisterModal(){
+function closeRegisterModal(clearPending=true){
   if(registerModal) registerModal.classList.remove('open');
+  if(clearPending) resetRegisterConsentState();
+}
+
+function setRegisterStatus(text, ok=false, dim=false){
+  if(!registerStatus) return;
+  registerStatus.textContent = text;
+  registerStatus.classList.toggle('ok', !!ok);
+  registerStatus.classList.toggle('dim', !!dim && !ok);
 }
 
 function setAuthStatus(text, ok=false){
-  authStatus.textContent = text;
+  if(!authStatus) return;
+  authStatus.textContent = text || '';
   authStatus.classList.toggle('ok', !!ok);
+  authStatus.classList.toggle('isHidden', !text);
 }
 
 function setSupabaseStatus(text, ok=false, dim=false){
@@ -1538,6 +1579,7 @@ function initSupabaseClient(force=false){
     state.supabaseReady = true;
     state.supabaseUrl = config.url;
     state.supabaseAnonKey = config.anonKey;
+    bindAuthStateListener();
     setSupabaseStatus('Supabase 자동 연결 준비 완료. 저장된 세션이 있으면 즉시 복원합니다.', true);
     return true;
   } catch(err){
@@ -1546,6 +1588,35 @@ function initSupabaseClient(force=false){
     setSupabaseStatus(`Supabase 초기화 실패: ${err?.message || err}`);
     return false;
   }
+}
+
+
+function bindAuthStateListener(){
+  if(!(state.supabaseReady && state.supabase)) return;
+  if(state.authSubscription) return;
+  const result = state.supabase.auth.onAuthStateChange((event, session) => {
+    const user = session?.user || null;
+    if((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && user){
+      if(state.currentUser?.userId === user.id) return;
+      void applyOnlineUser(user).catch(err => {
+        const message = err?.message || String(err);
+        setAuthStatus(`세션 반영 실패: ${message}`);
+      });
+      return;
+    }
+    if(event === 'SIGNED_OUT'){
+      stopOnlineLoops();
+      state.currentUser = null;
+      state.profileCache = null;
+      updateUserBadge();
+      renderLeaderboard([]);
+      renderPresence([], 0);
+      renderChatMessages([]);
+      closeSidePanels();
+      if(menuLayer.classList.contains('open')) renderMenu('auth');
+    }
+  });
+  state.authSubscription = result?.data?.subscription || result?.subscription || null;
 }
 
 function currentOnlineContext(){
@@ -1828,7 +1899,6 @@ function closeMenu(){
   state.menuOpen = false;
   menuLayer.classList.remove('open');
   closeRegisterModal();
-  setAuthStatus('온라인 계정과 최고 기록만 저장됩니다.');
 }
 
 function renderMenu(view='auto'){
@@ -1838,8 +1908,8 @@ function renderMenu(view='auto'){
   menuCloseBtn.style.display = forceAuth ? 'none' : '';
   if(forceAuth){
     menuTitle.textContent = 'ONLINE LOGIN';
-    menuSubtitle.textContent = '아이디와 비밀번호로 로그인합니다. 회원가입은 버튼을 눌러 별도 창에서 진행합니다. 서버 연결은 실행 즉시 자동으로 시도됩니다.';
-    authNotice.textContent = '시작 화면은 로그인 전용입니다. 아이디/비밀번호를 입력하고, 회원가입 버튼을 눌러 가입 창을 여세요. Supabase 설정값이 파일 안에 들어 있으면 자동 연결됩니다.';
+    menuSubtitle.textContent = '아이디와 비밀번호로 로그인합니다. 회원가입은 버튼을 눌러 별도 창에서 진행합니다.';
+    authNotice.textContent = '첫 화면은 로그인과 회원가입만 사용합니다. 회원가입이 완료되면 다시 로그인 화면으로 자동 이동합니다.';
     return;
   }
   const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
@@ -1877,10 +1947,10 @@ function validateRegisterForm(){
   const password = String(registerPassInput.value || '');
   const displayName = normalizeUsername(registerNameInput.value || '');
   const recoveryEmail = normalizeRecoveryEmail(registerEmailInput.value || '');
-  if(!isValidLoginId(loginId)){ setAuthStatus('회원가입 아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); return null; }
-  if(password.length < 6){ setAuthStatus('회원가입 비밀번호는 6자 이상으로 입력하세요.'); return null; }
-  if(displayName.length < 2){ setAuthStatus('닉네임은 2자 이상이어야 합니다.'); return null; }
-  if(!isValidRecoveryEmail(recoveryEmail)){ setAuthStatus('유효한 이메일 주소를 입력하세요.'); return null; }
+  if(!isValidLoginId(loginId)){ setRegisterStatus('회원가입 아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); setAuthStatus('회원가입 아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); return null; }
+  if(password.length < 6){ setRegisterStatus('회원가입 비밀번호는 6자 이상으로 입력하세요.'); setAuthStatus('회원가입 비밀번호는 6자 이상으로 입력하세요.'); return null; }
+  if(displayName.length < 2){ setRegisterStatus('닉네임은 2자 이상이어야 합니다.'); setAuthStatus('닉네임은 2자 이상이어야 합니다.'); return null; }
+  if(!isValidRecoveryEmail(recoveryEmail)){ setRegisterStatus('유효한 이메일 주소를 입력하세요.'); setAuthStatus('유효한 이메일 주소를 입력하세요.'); return null; }
   return { loginId, password, displayName, recoveryEmail };
 }
 
@@ -1888,91 +1958,157 @@ async function loginOnlineUser(){
   const loginId = normalizeLoginId(loginIdInput.value || '');
   const pass = String(loginPassInput.value || '');
   const authEmail = loginIdToEmailAlias(loginId);
+  if(!loginId || !pass){
+    setAuthStatus('로그인 정보가 없습니다. 먼저 회원가입을 진행하세요.');
+    showBanner('로그인 정보가 없습니다. 회원가입 하세요.', 1.6);
+    return;
+  }
   if(!initSupabaseClient()) return;
   if(!isValidLoginId(loginId)){ setAuthStatus('아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); return; }
   if(pass.length < 4){ setAuthStatus('비밀번호를 입력하세요.'); return; }
-  const { data, error } = await state.supabase.auth.signInWithPassword({ email: authEmail, password: pass });
-  if(error){ setAuthStatus(`로그인 실패: ${error.message}`); return; }
-  const user = data?.user || data?.session?.user;
-  if(!user){ setAuthStatus('세션을 만들지 못했습니다.'); return; }
-  await applyOnlineUser(user);
-  loginPassInput.value = '';
-  setAuthStatus(`@${loginId} 계정으로 로그인했습니다.`, true);
-  openMenu('home');
-  showBanner('온라인 로그인', 1.2);
+  try{
+    const { data, error } = await state.supabase.auth.signInWithPassword({ email: authEmail, password: pass });
+    if(error){
+      setAuthStatus(`로그인 실패: ${error.message}`);
+      showBanner('로그인 실패', 1.2);
+      return;
+    }
+    let user = data?.user || data?.session?.user || null;
+    if(!user){
+      const sessionResult = await state.supabase.auth.getSession();
+      user = sessionResult?.data?.session?.user || null;
+    }
+    if(!user){
+      setAuthStatus('로그인 세션을 만들지 못했습니다.');
+      showBanner('로그인 실패', 1.2);
+      return;
+    }
+    await applyOnlineUser(user);
+    loginPassInput.value = '';
+    setAuthStatus(`@${loginId} 계정으로 로그인했습니다.`, true);
+    openMenu('home');
+    showBanner('온라인 로그인', 1.2);
+  } catch(err){
+    const message = err?.message || String(err);
+    setAuthStatus(`로그인 실패: ${message}`);
+    showBanner('로그인 실패', 1.2);
+  }
 }
 
 async function registerOnlineUser(form){
-  if(!initSupabaseClient()) return;
-  const agreedAt = new Date().toISOString();
+  if(state.registerSubmitInFlight) return;
+  if(!initSupabaseClient()){
+    setRegisterStatus('Supabase 연결을 초기화하지 못했습니다.');
+    setAuthStatus('Supabase 연결을 초기화하지 못했습니다.');
+    showBanner('서버 연결 실패', 1.4);
+    return;
+  }
+  state.registerSubmitInFlight = true;
+  authRegisterBtn.disabled = true;
+  const agreedAt = form.privacyAgreedAt || state.registerPolicyAgreedAt || new Date().toISOString();
   const loginId = form.loginId;
   const authEmail = loginIdToEmailAlias(loginId);
-  const { data, error } = await state.supabase.auth.signUp({
-    email: authEmail,
-    password: form.password,
-    options: {
-      data: {
-        login_id: loginId,
-        display_name: form.displayName,
-        recovery_email: form.recoveryEmail,
-        privacy_version: privacyPolicyVersion(),
-        privacy_agreed_at: agreedAt,
+  try{
+    const { data, error } = await state.supabase.auth.signUp({
+      email: authEmail,
+      password: form.password,
+      options: {
+        data: {
+          login_id: loginId,
+          display_name: form.displayName,
+          recovery_email: form.recoveryEmail,
+          privacy_version: privacyPolicyVersion(),
+          privacy_agreed_at: agreedAt,
+        },
       },
-    },
-  });
-  if(error){ setAuthStatus(`회원가입 실패: ${error.message}`); return; }
-  const user = data?.user || data?.session?.user;
-  if(user && data?.session){
-    await applyOnlineUser(user, form.displayName, form.recoveryEmail);
-    const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
-    profile.loginId = form.loginId;
-    profile.name = form.displayName;
-    profile.recoveryEmail = form.recoveryEmail;
-    profile.privacyAgreedAt = agreedAt;
-    profile.privacyVersion = privacyPolicyVersion();
-    persistProfile(profile);
+    });
+    if(error) throw error;
+
+    loginIdInput.value = form.loginId;
+    loginPassInput.value = form.password;
     registerIdInput.value = '';
     registerPassInput.value = '';
     registerNameInput.value = '';
     registerEmailInput.value = '';
-    setAuthStatus('회원가입과 로그인에 성공했습니다.', true);
-    closeRegisterModal();
-    openMenu('home');
-    showBanner('온라인 계정 생성', 1.2);
-    return;
+
+    closePolicyModal();
+    closeRegisterModal(false);
+    setRegisterStatus('회원가입이 완료되었습니다.', true);
+    setAuthStatus('회원가입이 완료되었습니다. 로그인 화면으로 이동합니다.', true);
+    showBanner('회원가입 완료', 1.6);
+    resetRegisterConsentState();
+    openMenu('auth');
+  } catch(err){
+    const message = err?.message || String(err);
+    setRegisterStatus(`회원가입 실패: ${message}`);
+    setAuthStatus(`회원가입 실패: ${message}`);
+    showBanner('회원가입 실패', 1.4);
+    openRegisterModal(false);
+  } finally {
+    state.registerSubmitInFlight = false;
+    authRegisterBtn.disabled = false;
   }
-  setAuthStatus('회원가입 요청이 접수되었습니다. Email Confirm이 켜져 있으면 별도 인증 후 로그인해야 할 수 있습니다.', true);
-  closeRegisterModal();
 }
 
 function requestRegisterApproval(){
   const form = validateRegisterForm();
   if(!form) return;
   state.pendingRegisterForm = form;
+
+  if(state.registerSubmitInFlight) return;
+
+  if(state.registerPolicyApproved === true){
+    void registerOnlineUser({
+      loginId: form.loginId,
+      password: form.password,
+      displayName: form.displayName,
+      recoveryEmail: form.recoveryEmail,
+      privacyAgreedAt: state.registerPolicyAgreedAt || new Date().toISOString(),
+    });
+    return;
+  }
+
+  if(state.registerPolicyRejected === true){
+    setRegisterStatus('정보 동의가 안되었습니다. 개인정보 처리방침에 동의해야 가입할 수 있습니다.');
+    setAuthStatus('정보 동의가 안되었습니다. 개인정보 처리방침에 동의해야 가입할 수 있습니다.');
+    showBanner('정보 동의가 안되었습니다.', 1.6);
+    return;
+  }
+
   openPolicyModal();
-  setAuthStatus('정책 창 안의 체크박스를 선택한 뒤 동의하기를 누르면 회원가입이 완료됩니다.');
+  setRegisterStatus('개인정보 처리방침을 확인하고 거절 또는 동의를 선택하세요.', false, true);
+  setAuthStatus('개인정보 처리방침을 확인하고 거절 또는 동의를 선택하세요.');
+  showBanner('개인정보 처리방침 확인', 1.2);
 }
 
-async function approvePolicyAndRegister(){
-  if(!state.pendingRegisterForm){
-    closePolicyModal();
-    return;
-  }
+function approvePolicyAndRegister(){
   if(policyConsentCheck && !policyConsentCheck.checked){
-    setAuthStatus('정책 창 안의 체크박스를 선택해야 가입을 진행할 수 있습니다.');
+    setRegisterStatus('정책 창 안의 체크박스를 선택해야 동의할 수 있습니다.');
+    setAuthStatus('정책 창 안의 체크박스를 선택해야 동의할 수 있습니다.');
+    showBanner('체크 후 동의하세요.', 1.2);
     return;
   }
-  const form = state.pendingRegisterForm;
-  state.pendingRegisterForm = null;
+  state.registerPolicyApproved = true;
+  state.registerPolicyRejected = false;
+  state.registerPolicyAgreedAt = new Date().toISOString();
+  if(policyConsentCheck) policyConsentCheck.checked = true;
   closePolicyModal();
-  await registerOnlineUser(form);
+  openRegisterModal(false);
+  setRegisterStatus('개인정보 처리방침 동의가 완료되었습니다. 이제 가입완료를 누르세요.', true);
+  setAuthStatus('개인정보 처리방침 동의가 완료되었습니다. 이제 가입완료를 누르세요.', true);
+  showBanner('동의 완료', 1.1);
 }
 
 function rejectPolicyAgreement(){
-  state.pendingRegisterForm = null;
+  state.registerPolicyApproved = false;
+  state.registerPolicyRejected = true;
+  state.registerPolicyAgreedAt = '';
   if(policyConsentCheck) policyConsentCheck.checked = false;
   closePolicyModal();
-  setAuthStatus('개인정보 처리방침에 동의하지 않아 회원가입을 취소했습니다.');
+  openRegisterModal(false);
+  setRegisterStatus('개인정보 처리방침에 동의하지 않았습니다. 가입완료를 누르면 미동의 메시지가 표시됩니다.');
+  setAuthStatus('개인정보 처리방침에 동의하지 않았습니다.');
+  showBanner('동의 거절', 1.1);
 }
 
 async function logoutCurrentUser(){
@@ -1996,6 +2132,34 @@ async function logoutCurrentUser(){
   loginPassInput.value = '';
   openMenu('auth');
   setAuthStatus('로그아웃되었습니다.');
+}
+
+async function deleteCurrentAccount(){
+  if(!state.currentUser || !state.supabaseReady || !state.supabase) return;
+  const agreed = window.confirm('정말 회원탈퇴하시겠습니까? 채팅과 랭킹 기록을 포함한 계정 데이터가 삭제됩니다.');
+  if(!agreed) return;
+  try{
+    await touchPresence(true);
+    const { error } = await state.supabase.rpc('delete_my_account');
+    if(error) throw error;
+    try{ await state.supabase.auth.signOut(); } catch(signOutError){}
+    stopOnlineLoops();
+    state.currentUser = null;
+    state.profileCache = null;
+    updateUserBadge();
+    renderLeaderboard([]);
+    renderPresence([], 0);
+    renderChatMessages([]);
+    closeSidePanels();
+    loginPassInput.value = '';
+    openMenu('auth');
+    setAuthStatus('회원탈퇴가 완료되었습니다.', true);
+    showBanner('회원탈퇴 완료', 1.4);
+  } catch(err){
+    const message = err?.message || String(err);
+    setAuthStatus(`회원탈퇴 실패: ${message}. SQL Editor에 delete_my_account 함수를 추가해야 할 수 있습니다.`);
+    showBanner('회원탈퇴 실패', 1.4);
+  }
 }
 
 function saveUserProgress(){
@@ -3942,11 +4106,19 @@ function onEnemyKilled(e){
   chatCollapseBtn.addEventListener('click', () => toggleChatPanel(false));
   leaderboardRefreshBtn.addEventListener('click', () => { void refreshLeaderboard(); });
   presenceRefreshBtn.addEventListener('click', () => { void refreshPresence(); });
-  authRegisterOpenBtn.addEventListener('click', openRegisterModal);
-  registerCloseBtn.addEventListener('click', closeRegisterModal);
-  registerModal.querySelector('.policyBackdrop').addEventListener('click', closeRegisterModal);
-  authLoginBtn.addEventListener('click', loginCurrentMode);
-  authRegisterBtn.addEventListener('click', registerCurrentMode);
+  authLoginBtn.type = 'button';
+  authRegisterOpenBtn.type = 'button';
+  authRegisterBtn.type = 'button';
+  registerCloseBtn.type = 'button';
+  authPolicyViewBtn.type = 'button';
+  policyCloseBtn.type = 'button';
+  policyRejectBtn.type = 'button';
+  policyAgreeBtn.type = 'button';
+  authRegisterOpenBtn.addEventListener('click', () => openRegisterModal(true));
+  registerCloseBtn.addEventListener('click', () => closeRegisterModal());
+  registerModal.querySelector('.policyBackdrop').addEventListener('click', () => closeRegisterModal(true));
+  authLoginBtn.addEventListener('click', ev => { ev.preventDefault(); loginCurrentMode(); });
+  authRegisterBtn.onclick = ev => { ev.preventDefault(); registerCurrentMode(); };
   loginPassInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
   loginIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
   registerEmailInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
@@ -3955,11 +4127,12 @@ function onEnemyKilled(e){
   registerIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
   authPolicyViewBtn.addEventListener('click', openPolicyModal);
   policyCloseBtn.addEventListener('click', closePolicyModal);
-  policyRejectBtn.addEventListener('click', rejectPolicyAgreement);
-  policyAgreeBtn.addEventListener('click', () => { void approvePolicyAndRegister(); });
+  policyRejectBtn.onclick = ev => { ev.preventDefault(); rejectPolicyAgreement(); };
+  policyAgreeBtn.onclick = ev => { ev.preventDefault(); approvePolicyAndRegister(); };
   policyModal.querySelector('.policyBackdrop').addEventListener('click', closePolicyModal);
   newGameBtn.addEventListener('click', beginNewGame);
   logoutBtn.addEventListener('click', () => { void logoutCurrentUser(); });
+  deleteAccountBtn.addEventListener('click', () => { void deleteCurrentAccount(); });
   chatSendBtn.addEventListener('click', () => { void sendChatMessage(); });
   chatInput.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); void sendChatMessage(); } });
   sliderWrap.addEventListener('scroll', () => { const page = Math.round(sliderWrap.scrollLeft / Math.max(1, sliderWrap.clientWidth)); if(page !== state.page){ state.page = Math.max(0, Math.min(pageCount()-1, page)); syncPageUI(); } }, {passive:true});
