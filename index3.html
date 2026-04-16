@@ -249,7 +249,6 @@
   const registerIdInput = document.getElementById('registerIdInput');
   const registerPassInput = document.getElementById('registerPassInput');
   const registerNameInput = document.getElementById('registerNameInput');
-  const registerEmailInput = document.getElementById('registerEmailInput');
   const authRegisterOpenBtn = document.getElementById('authRegisterOpenBtn');
   const registerModal = document.getElementById('registerModal');
   const registerCloseBtn = document.getElementById('registerCloseBtn');
@@ -1176,7 +1175,7 @@ grant execute on function public.delete_my_account() to authenticated;</pre>
         <div>
           <div class="menuEyebrow">CREATE ACCOUNT</div>
           <h2>회원가입</h2>
-          <div class="policyMeta">아이디 · 비밀번호 · 닉네임 · 이메일 주소 입력</div>
+          <div class="policyMeta">아이디 · 비밀번호 · 닉네임 입력</div>
         </div>
         <button id="registerCloseBtn" class="small">닫기</button>
       </div>
@@ -1189,12 +1188,9 @@ grant execute on function public.delete_my_account() to authenticated;</pre>
             <input id="registerPassInput" type="password" maxlength="72" placeholder="6자 이상 권장" autocomplete="new-password" />
           </label>
         </div>
-        <div class="menuTwoCol">
+        <div class="menuField">
           <label class="menuField">닉네임
             <input id="registerNameInput" type="text" maxlength="16" placeholder="게임 내 표시 이름" autocomplete="nickname" />
-          </label>
-          <label class="menuField">이메일 주소
-            <input id="registerEmailInput" type="email" maxlength="120" placeholder="나중에 임시 비밀번호 발송용" autocomplete="email" autocapitalize="off" spellcheck="false" />
           </label>
         </div>
         <div class="menuCheck">
@@ -1308,8 +1304,7 @@ function normalizeRecoveryEmail(value=''){
 }
 
 function isValidRecoveryEmail(value=''){
-  const email = normalizeRecoveryEmail(value);
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 120;
+  return true;
 }
 
 function loginIdToEmailAlias(loginId=''){
@@ -1332,7 +1327,7 @@ function ensureProfileShape(profile, fallbackName=''){
   return {
     loginId: normalizeLoginId(profile?.loginId || ''),
     name: normalizeUsername(profile?.name || fallbackName || 'PLAYER') || 'PLAYER',
-    recoveryEmail: normalizeRecoveryEmail(profile?.recoveryEmail || profile?.email || ''),
+    recoveryEmail: '',
     bestWave: Number(profile?.bestWave || 0),
     bestKills: Number(profile?.bestKills || 0),
     privacyAgreedAt: profile?.privacyAgreedAt || '',
@@ -1353,7 +1348,7 @@ function defaultProfileForUser(user=state.currentUser){
   return ensureProfileShape({
     loginId: user?.loginId || emailAliasToLoginId(user?.authEmail || ''),
     name: user?.name || deriveDisplayName(user?.loginId || '', 'PLAYER'),
-    recoveryEmail: user?.recoveryEmail || '',
+    recoveryEmail: '',
     bestWave: 0,
     bestKills: 0,
     privacyAgreedAt: user?.privacyAgreedAt || '',
@@ -1946,12 +1941,10 @@ function validateRegisterForm(){
   const loginId = normalizeLoginId(registerIdInput.value || '');
   const password = String(registerPassInput.value || '');
   const displayName = normalizeUsername(registerNameInput.value || '');
-  const recoveryEmail = normalizeRecoveryEmail(registerEmailInput.value || '');
   if(!isValidLoginId(loginId)){ setRegisterStatus('회원가입 아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); setAuthStatus('회원가입 아이디는 영문 소문자, 숫자, . _ - 조합 4~24자여야 합니다.'); return null; }
   if(password.length < 6){ setRegisterStatus('회원가입 비밀번호는 6자 이상으로 입력하세요.'); setAuthStatus('회원가입 비밀번호는 6자 이상으로 입력하세요.'); return null; }
   if(displayName.length < 2){ setRegisterStatus('닉네임은 2자 이상이어야 합니다.'); setAuthStatus('닉네임은 2자 이상이어야 합니다.'); return null; }
-  if(!isValidRecoveryEmail(recoveryEmail)){ setRegisterStatus('유효한 이메일 주소를 입력하세요.'); setAuthStatus('유효한 이메일 주소를 입력하세요.'); return null; }
-  return { loginId, password, displayName, recoveryEmail };
+  return { loginId, password, displayName, recoveryEmail: '' };
 }
 
 async function loginOnlineUser(){
@@ -2016,7 +2009,7 @@ async function registerOnlineUser(form){
         data: {
           login_id: loginId,
           display_name: form.displayName,
-          recovery_email: form.recoveryEmail,
+          recovery_email: authEmail,
           privacy_version: privacyPolicyVersion(),
           privacy_agreed_at: agreedAt,
         },
@@ -2029,7 +2022,6 @@ async function registerOnlineUser(form){
     registerIdInput.value = '';
     registerPassInput.value = '';
     registerNameInput.value = '';
-    registerEmailInput.value = '';
 
     closePolicyModal();
     closeRegisterModal(false);
@@ -4121,7 +4113,6 @@ function onEnemyKilled(e){
   authRegisterBtn.onclick = ev => { ev.preventDefault(); registerCurrentMode(); };
   loginPassInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
   loginIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
-  registerEmailInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
   registerNameInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
   registerPassInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
   registerIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
