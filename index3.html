@@ -34,12 +34,12 @@
   .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 8px;min-width:0}
   .label{font-size:10px;letter-spacing:.08em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .value{font-size:15px;font-weight:800;line-height:1.1;margin-top:2px;white-space:nowrap}
-  #onlineTopVal{position:relative;font-size:13px;overflow:hidden;text-overflow:ellipsis}
+  #onlineTopVal{position:relative;font-size:13px;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center}
   #onlineTopVal.nickOverflow{mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);-webkit-mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%)}
-    .nickTicker{display:inline-flex;align-items:center;min-width:max-content;white-space:nowrap;will-change:transform}
-  .nickTicker span{display:inline-block;white-space:nowrap}
-  .nickTicker.runOnce{animation:nickTickerOnce var(--ticker-duration, 6s) linear 1 forwards}
-  @keyframes nickTickerOnce{0%{transform:translateX(0)}100%{transform:translateX(calc(-1 * var(--ticker-distance, 0px)))}}
+  .nickTicker{display:inline-flex;align-items:center;min-width:max-content;white-space:nowrap;will-change:transform;transform:translateX(0);transition:transform 0s linear}
+  .nickTicker span{display:inline-block;white-space:nowrap;padding-right:14px}
+  .installCancelBtn{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;min-height:28px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,182,120,.65);background:rgba(42,24,12,.92);color:#ffe8c0;font-size:11px;font-weight:900;letter-spacing:.02em;box-shadow:0 10px 26px rgba(0,0,0,.28);backdrop-filter:blur(4px);z-index:16;pointer-events:auto;white-space:nowrap}
+  .installCancelBtn.open{display:inline-flex}
   .controls{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}
   button{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;padding:0 12px;font-weight:800;font-size:13px;min-height:42px;transition:transform .08s ease, box-shadow .14s ease, filter .16s ease}
   button:active{transform:translateY(1px) scale(.992);filter:brightness(1.06)}
@@ -217,12 +217,12 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-17-05';
+  const BUILD_VERSION = '2026-04-17-06';
   const PATCH_NOTES = [
+    'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
+    '설치 직후 기물 위에 설치 취소 버튼이 뜨도록 추가',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
-    'ONLINE 긴 닉네임은 한 번만 왼쪽으로 이동한 뒤 멈추도록 수정',
     '기물 판매 후 전장에 남던 파란 원 이펙트 정리',
-    '상단 ONLINE 칸과 버튼 배치를 모바일 화면에 맞게 정리',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -256,6 +256,7 @@
   const chatSendBtn = document.getElementById('chatSendBtn');
   const appOnlineStatus = document.getElementById('appOnlineStatus');
   const patchNotesSummary = document.getElementById('patchNotesSummary');
+  const installCancelBtn = document.getElementById('installCancelBtn');
 
   const menuLayer = document.getElementById('menuLayer');
   const menuCloseBtn = document.getElementById('menuCloseBtn');
@@ -479,6 +480,7 @@ const state = {
   state.rankPanelOpen = false;
   state.presencePanelOpen = false;
   state.authSubscription = null;
+  state.pendingPlaceCancelId = null;
 
 
 const installMap = Object.fromEntries(INSTALLS.map(i => [i.key, i]));
@@ -1109,6 +1111,13 @@ function injectRuntimeUi(){
   `;
   fieldWrap.appendChild(panels);
 
+  const installCancel = document.createElement('button');
+  installCancel.id = 'installCancelBtn';
+  installCancel.type = 'button';
+  installCancel.className = 'installCancelBtn';
+  installCancel.textContent = '설치 취소';
+  fieldWrap.appendChild(installCancel);
+
   const layer = document.createElement('div');
   layer.id = 'menuLayer';
   layer.innerHTML = `
@@ -1725,27 +1734,43 @@ function renderPatchNotes(){
   `;
 }
 
+let onlineTickerStartTimer = 0;
+function clearOnlineTopTickerTimers(){
+  if(onlineTickerStartTimer){
+    clearTimeout(onlineTickerStartTimer);
+    onlineTickerStartTimer = 0;
+  }
+}
+
 function updateOnlineTopTicker(name='-'){
   if(!onlineTopVal) return;
+  clearOnlineTopTickerTimers();
   const rawName = String(name || '-');
   const safeName = escapeHtml(rawName);
   onlineTopVal.classList.remove('nickOverflow');
-  onlineTopVal.style.removeProperty('--ticker-distance');
-  onlineTopVal.style.removeProperty('--ticker-duration');
-  onlineTopVal.textContent = rawName;
+  onlineTopVal.innerHTML = `<div class="nickTicker"><span>${safeName}</span></div>`;
   requestAnimationFrame(() => {
-    if(!onlineTopVal) return;
-    const overflow = Math.max(0, onlineTopVal.scrollWidth - onlineTopVal.clientWidth);
-    if(overflow <= 2){
-      onlineTopVal.classList.remove('nickOverflow');
-      onlineTopVal.textContent = rawName;
-      return;
-    }
-    const duration = Math.min(10, Math.max(4.2, overflow / 22));
-    onlineTopVal.classList.add('nickOverflow');
-    onlineTopVal.style.setProperty('--ticker-distance', overflow + 'px');
-    onlineTopVal.style.setProperty('--ticker-duration', duration.toFixed(2) + 's');
-    onlineTopVal.innerHTML = `<div class="nickTicker runOnce"><span>${safeName}</span></div>`;
+    requestAnimationFrame(() => {
+      if(!onlineTopVal) return;
+      const ticker = onlineTopVal.querySelector('.nickTicker');
+      if(!ticker) return;
+      const overflow = Math.max(0, ticker.scrollWidth - onlineTopVal.clientWidth);
+      if(overflow <= 2){
+        onlineTopVal.classList.remove('nickOverflow');
+        onlineTopVal.textContent = rawName;
+        return;
+      }
+      const distance = overflow + 10;
+      const duration = Math.min(12, Math.max(4.8, distance / 18));
+      onlineTopVal.classList.add('nickOverflow');
+      ticker.style.transition = 'transform 0s linear';
+      ticker.style.transform = 'translateX(0)';
+      void ticker.offsetWidth;
+      onlineTickerStartTimer = window.setTimeout(() => {
+        ticker.style.transition = `transform ${duration.toFixed(2)}s linear`;
+        ticker.style.transform = `translateX(${-distance}px)`;
+      }, 700);
+    });
   });
 }
 
@@ -2884,6 +2909,7 @@ function resize(){
     state.supportDirty = true;
     syncPageUI();
     fitDeckMetaText();
+    refreshInstallCancelButton();
   }
 
   function gridCenter(col,row){
@@ -2947,20 +2973,68 @@ function refreshActionBar(){
 
   function canPlaceAt(col,row){ return !state.turrets.some(t => t.col===col && t.row===row); }
 
+  function hideInstallCancel(){
+    state.pendingPlaceCancelId = null;
+    if(!installCancelBtn) return;
+    installCancelBtn.classList.remove('open');
+  }
+
+  function refreshInstallCancelButton(){
+    if(!installCancelBtn) return;
+    if(!state.pendingPlaceCancelId){
+      installCancelBtn.classList.remove('open');
+      return;
+    }
+    const turret = state.turrets.find(t => t.id === state.pendingPlaceCancelId);
+    if(!turret){
+      hideInstallCancel();
+      return;
+    }
+    const yOffset = Math.max(22, state.field.tileH * 0.40);
+    installCancelBtn.style.left = Math.round(turret.x) + 'px';
+    installCancelBtn.style.top = Math.round(turret.y - yOffset) + 'px';
+    installCancelBtn.classList.add('open');
+  }
+
+  function showInstallCancelForTurret(turret){
+    if(!turret){ hideInstallCancel(); return; }
+    state.pendingPlaceCancelId = turret.id;
+    refreshInstallCancelButton();
+  }
+
+  function cancelPendingPlacement(){
+    const turret = state.turrets.find(t => t.id === state.pendingPlaceCancelId);
+    if(!turret){
+      hideInstallCancel();
+      return;
+    }
+    state.gold += turret.base.cost;
+    state.turrets = state.turrets.filter(t => t.id !== turret.id);
+    state.effects = state.effects.filter((eff) => !(eff.type === 'place' && Math.hypot((eff.x || 0) - turret.x, (eff.y || 0) - turret.y) < 20));
+    if(state.selectedTurretId === turret.id) state.selectedTurretId = null;
+    state.supportDirty = true;
+    hideInstallCancel();
+    updateHud();
+    refreshActionBar();
+    buildDeck();
+    showBanner('설치 취소', 1.0);
+  }
 
 function place(col,row){
   if(state.mode !== 'install') return;
   const occupied = state.turrets.find(t => t.col===col && t.row===row);
-  if(occupied){ selectTurret(occupied.id); return; }
+  if(occupied){ hideInstallCancel(); selectTurret(occupied.id); return; }
   const item = getInstall(state.selectedInstall);
   if(!installUnlocked(item)){ showBanner(`WAVE ${installReqWave(item.key)} 해금`, 1.1); return; }
   if(state.turrets.length >= installSlotLimit()){ showBanner(`설치 슬롯 한도 ${installSlotLimit()}기`, 1.1); return; }
   if(installCapReached(item)){ showBanner(`${item.name} 최대 ${installMaxCount(item.key)}기`, 1.1); return; }
   if(!canPlaceAt(col,row) || state.gold < item.cost) return;
   state.gold -= item.cost;
-  state.turrets.push(makeTurret(item,col,row));
+  const placedTurret = makeTurret(item,col,row);
+  state.turrets.push(placedTurret);
   state.supportDirty = true;
   state.selectedTurretId = null;
+  showInstallCancelForTurret(placedTurret);
   if(hasPassive('blood_furnace') && state.energy > 6){
     state.energy -= 3;
     state.energyLossBank += 3;
@@ -2988,6 +3062,7 @@ function upgradeSelected(){
   if(state.mode === 'passive'){ buySelectedPassive(); return; }
   const t = getSelectedTurret(); if(!t) return;
   const cost = getUpgradeCost(t); if(!cost || state.gold < cost) return;
+  hideInstallCancel();
   const nextLevel = t.level + 1;
   const perkText = upgradeDeltaText(t.base, nextLevel);
   state.gold -= cost;
@@ -3004,6 +3079,7 @@ function upgradeSelected(){
 function sellSelected(){
   if(state.mode === 'passive') return;
   const t = getSelectedTurret(); if(!t) return;
+  hideInstallCancel();
   state.gold += Math.round(turretTotalSpent(t) * 0.65);
   if(hasPassive('salvage_relay')) healEnergy(2);
   state.turrets = state.turrets.filter(v => v.id !== t.id);
@@ -3022,11 +3098,13 @@ function resetGame(options={}){
   state.turrets = []; state.enemies = []; state.bullets = []; state.effects = []; state.pools = []; state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.0; state.last = 0; state.bannerUntil = 0;
   state.passives = {}; state.emergencyUsed = false; state.energyLossBank = 0; state.damageBuffs = []; state.animClock = 0;
   state.supportCache = new Map(); state.supportDirty = true;
+  hideInstallCancel();
   banner.style.display='none'; banner.style.opacity='0'; state.paused = false; syncStartToggleButton(); updateHud(); buildDeck(); updateSelectedName(); refreshActionBar(); scrollToPage(0);
 }
 
 
   function startGame(){
+    hideInstallCancel();
     if(state.menuOpen){
       if(!state.currentUser){
         openMenu('auth');
@@ -4589,6 +4667,13 @@ function onEnemyKilled(e){
   });
   pauseBtn.addEventListener('click', () => {});
   resetBtn.addEventListener('click', resetGame);
+  if(installCancelBtn){
+    installCancelBtn.addEventListener('click', ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      cancelPendingPlacement();
+    });
+  }
   upgradeBtn.addEventListener('click', upgradeSelected);
   sellBtn.addEventListener('click', sellSelected);
   modeInstallBtn.addEventListener('click', () => changeMode('install'));
