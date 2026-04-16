@@ -207,8 +207,9 @@
 
   const SUPABASE_CONFIG_KEY = 'zdf_supabase_config_v2';
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
+  const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-17-01';
+  const BUILD_VERSION = '2026-04-17-02';
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
     // 예: 'https://your-project.supabase.co'
@@ -1486,14 +1487,55 @@ function readAutoLoginPreference(){
   }
 }
 
+function clearSavedLoginCredentials(){
+  try{
+    localStorage.removeItem(AUTO_LOGIN_CREDENTIALS_KEY);
+  } catch(err){}
+}
+
+function readSavedLoginCredentials(){
+  try{
+    const raw = localStorage.getItem(AUTO_LOGIN_CREDENTIALS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const email = normalizeRecoveryEmail(parsed?.email || '');
+    const password = String(parsed?.password || '');
+    if(!isValidRecoveryEmail(email) || !password) return { email:'', password:'' };
+    return { email, password };
+  } catch(err){
+    return { email:'', password:'' };
+  }
+}
+
+function writeSavedLoginCredentials(email='', password=''){
+  const authEmail = normalizeRecoveryEmail(email);
+  const pass = String(password || '');
+  if(!isValidRecoveryEmail(authEmail) || !pass){
+    clearSavedLoginCredentials();
+    return;
+  }
+  try{
+    localStorage.setItem(AUTO_LOGIN_CREDENTIALS_KEY, JSON.stringify({ email: authEmail, password: pass }));
+  } catch(err){}
+}
+
+function syncSavedLoginInputs(force=false){
+  if(!loginIdInput || !loginPassInput) return;
+  if(!readAutoLoginPreference()) return;
+  const creds = readSavedLoginCredentials();
+  if(creds.email && (force || !String(loginIdInput.value || '').trim())) loginIdInput.value = creds.email;
+  if(creds.password && (force || !String(loginPassInput.value || ''))) loginPassInput.value = creds.password;
+}
+
 function writeAutoLoginPreference(enabled){
   try{
     localStorage.setItem(AUTO_LOGIN_PREF_KEY, enabled ? '1' : '0');
   } catch(err){}
+  if(!enabled) clearSavedLoginCredentials();
 }
 
 function syncAutoLoginCheckbox(){
   if(autoLoginCheck) autoLoginCheck.checked = readAutoLoginPreference();
+  syncSavedLoginInputs(true);
 }
 
 function delay(ms){
@@ -2315,6 +2357,8 @@ async function loginOnlineUser(){
       return;
     }
     writeAutoLoginPreference(autoLoginEnabled);
+    if(autoLoginEnabled) writeSavedLoginCredentials(authEmail, pass);
+    else clearSavedLoginCredentials();
     await applyOnlineUser(user);
     state.authFlowUnlocked = true;
     updateAuthGate();
@@ -2386,6 +2430,8 @@ async function registerOnlineUser(form){
       updateUserBadge();
     }
 
+    if(readAutoLoginPreference()) writeSavedLoginCredentials(form.recoveryEmail, form.password);
+    else clearSavedLoginCredentials();
     loginIdInput.value = form.recoveryEmail;
     loginPassInput.value = form.password;
     registerIdInput.value = '';
@@ -2497,6 +2543,7 @@ async function logoutCurrentUser(){
   renderChatMessages([]);
   closeSidePanels();
   loginPassInput.value = '';
+  syncSavedLoginInputs(true);
   openMenu('auth');
   setAuthStatus('로그아웃되었습니다.');
 }
@@ -2520,6 +2567,10 @@ async function deleteCurrentAccount(){
     renderPresence([], 0);
     renderChatMessages([]);
     closeSidePanels();
+    clearSavedLoginCredentials();
+    if(autoLoginCheck) autoLoginCheck.checked = false;
+    writeAutoLoginPreference(false);
+    loginIdInput.value = '';
     loginPassInput.value = '';
     openMenu('auth');
     setAuthStatus('회원탈퇴가 완료되었습니다.', true);
@@ -2589,6 +2640,7 @@ async function hydrateSession(options={}){
   state.authFlowUnlocked = false;
   updateAuthGate();
   updateUserBadge();
+  syncSavedLoginInputs(true);
   openMenu('auth');
   if(ok) setAuthStatus('로그인 버튼을 눌러 시작 화면을 열 수 있습니다.', true);
 }
@@ -4558,7 +4610,11 @@ function onEnemyKilled(e){
     resize();
     syncAutoLoginCheckbox();
     if(autoLoginCheck){
-      autoLoginCheck.addEventListener('change', () => writeAutoLoginPreference(!!autoLoginCheck.checked));
+      autoLoginCheck.addEventListener('change', () => {
+        const enabled = !!autoLoginCheck.checked;
+        writeAutoLoginPreference(enabled);
+        if(enabled) syncSavedLoginInputs(true);
+      });
     }
     initSupabaseClient(false);
     renderLeaderboard([]);
