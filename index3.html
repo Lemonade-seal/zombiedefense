@@ -36,8 +36,10 @@
   .value{font-size:15px;font-weight:800;line-height:1.1;margin-top:2px;white-space:nowrap}
   #onlineTopVal{position:relative;font-size:13px;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center}
   #onlineTopVal.nickOverflow{mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);-webkit-mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%)}
-  .nickTicker{display:inline-flex;align-items:center;min-width:max-content;white-space:nowrap;will-change:transform;transform:translateX(0);transition:transform 0s linear}
-  .nickTicker span{display:inline-block;white-space:nowrap;padding-right:14px}
+  .nickTicker{display:inline-flex;align-items:center;min-width:max-content;white-space:nowrap;will-change:transform;transform:translateX(0)}
+  .nickTicker span{display:inline-block;white-space:nowrap;padding-right:24px}
+  .nickTicker.marqueeLoop{animation-name:nickTickerLoop;animation-duration:var(--nick-duration,6s);animation-timing-function:linear;animation-iteration-count:infinite;animation-fill-mode:both}
+  @keyframes nickTickerLoop{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--nick-travel, 0px)))}}
   .installCancelBtn{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;min-height:28px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,182,120,.65);background:rgba(42,24,12,.92);color:#ffe8c0;font-size:11px;font-weight:900;letter-spacing:.02em;box-shadow:0 10px 26px rgba(0,0,0,.28);backdrop-filter:blur(4px);z-index:16;pointer-events:auto;white-space:nowrap}
   .installCancelBtn.open{display:inline-flex}
   .controls{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}
@@ -217,7 +219,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-17-06';
+  const BUILD_VERSION = '2026-04-17-07';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '설치 직후 기물 위에 설치 취소 버튼이 뜨도록 추가',
@@ -1748,28 +1750,33 @@ function updateOnlineTopTicker(name='-'){
   const rawName = String(name || '-');
   const safeName = escapeHtml(rawName);
   onlineTopVal.classList.remove('nickOverflow');
-  onlineTopVal.innerHTML = `<div class="nickTicker"><span>${safeName}</span></div>`;
+  onlineTopVal.innerHTML = `<div class="nickTicker"><span class="nickTickerPrimary">${safeName}</span><span class="nickTickerRepeat" aria-hidden="true">${safeName}</span></div>`;
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       if(!onlineTopVal) return;
       const ticker = onlineTopVal.querySelector('.nickTicker');
-      if(!ticker) return;
-      const overflow = Math.max(0, ticker.scrollWidth - onlineTopVal.clientWidth);
+      const primary = onlineTopVal.querySelector('.nickTickerPrimary');
+      if(!ticker || !primary) return;
+      ticker.classList.remove('marqueeLoop');
+      ticker.style.removeProperty('--nick-travel');
+      ticker.style.removeProperty('--nick-duration');
+      ticker.style.animationDelay = '0s';
+      ticker.style.transform = 'translateX(0)';
+      const travel = Math.ceil(primary.getBoundingClientRect().width);
+      const overflow = Math.max(0, travel - onlineTopVal.clientWidth);
       if(overflow <= 2){
         onlineTopVal.classList.remove('nickOverflow');
         onlineTopVal.textContent = rawName;
         return;
       }
-      const distance = overflow + 10;
-      const duration = Math.min(12, Math.max(4.8, distance / 18));
+      const duration = Math.min(16, Math.max(5.5, travel / 22));
       onlineTopVal.classList.add('nickOverflow');
-      ticker.style.transition = 'transform 0s linear';
-      ticker.style.transform = 'translateX(0)';
+      ticker.style.setProperty('--nick-travel', `${travel}px`);
+      ticker.style.setProperty('--nick-duration', `${duration.toFixed(2)}s`);
       void ticker.offsetWidth;
       onlineTickerStartTimer = window.setTimeout(() => {
-        ticker.style.transition = `transform ${duration.toFixed(2)}s linear`;
-        ticker.style.transform = `translateX(${-distance}px)`;
-      }, 700);
+        ticker.classList.add('marqueeLoop');
+      }, 450);
     });
   });
 }
