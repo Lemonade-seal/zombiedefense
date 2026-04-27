@@ -2440,7 +2440,6 @@ async function applyOnlineUser(user, preferredName='', preferredRecoveryEmail=''
   updateUserBadge();
   await fetchOnlineProfile(true);
   startOnlineLoops();
-  renderMenu('auth');
 }
 
 async function validateRegisterForm(){
@@ -2915,9 +2914,19 @@ function syncPageUI(){
 function drawPreview(cv, item){
   const c = cv.getContext('2d');
   c.clearRect(0,0,cv.width,cv.height);
-  c.fillStyle = '#122030'; c.fillRect(0,0,cv.width,cv.height);
-  c.fillStyle = 'rgba(255,255,255,.03)';
-  for(let x=0;x<cv.width;x+=20){ c.fillRect(x, 0, 1, cv.height); }
+  const bg = c.createLinearGradient(0,0,cv.width,cv.height);
+  bg.addColorStop(0, '#0f1a28');
+  bg.addColorStop(0.55, '#132033');
+  bg.addColorStop(1, '#0c1522');
+  c.fillStyle = bg;
+  c.fillRect(0,0,cv.width,cv.height);
+  const glow = c.createRadialGradient(cv.width*0.5, cv.height*0.45, 6, cv.width*0.5, cv.height*0.45, cv.width*0.45);
+  glow.addColorStop(0, 'rgba(150,210,255,.20)');
+  glow.addColorStop(1, 'rgba(150,210,255,0)');
+  c.fillStyle = glow;
+  c.fillRect(0,0,cv.width,cv.height);
+  c.fillStyle = 'rgba(255,255,255,.04)';
+  for(let x=0;x<cv.width;x+=16){ c.fillRect(x, 0, 1, cv.height); }
   drawInstallModel(c, item, cv.width/2, cv.height/2+4, cv.width*0.66, cv.height*0.68, 1, true);
 }
 
@@ -4005,6 +4014,9 @@ function onEnemyKilled(e){
 
     shapeCtx(c, cx, cy, w, h, accent);
     const W = w, H = h;
+    c.shadowColor = 'rgba(0,0,0,.34)';
+    c.shadowBlur = isCard ? 6 : 9;
+    c.shadowOffsetY = isCard ? 2 : 3;
 
     const basePlate = (scale=1) => {
       c.fillStyle = '#253242';
@@ -4362,6 +4374,20 @@ function onEnemyKilled(e){
       c.fillText('L'+level, -W*0.30, -H*0.28);
     }
 
+    c.shadowBlur = 0;
+    c.shadowOffsetY = 0;
+    const sheen = c.createLinearGradient(-W*0.45, -H*0.45, W*0.45, H*0.45);
+    sheen.addColorStop(0, 'rgba(255,255,255,.24)');
+    sheen.addColorStop(0.35, 'rgba(255,255,255,.08)');
+    sheen.addColorStop(1, 'rgba(0,0,0,.14)');
+    c.fillStyle = sheen;
+    c.globalCompositeOperation = 'soft-light';
+    c.fillRect(-W*0.42, -H*0.34, W*0.84, H*0.68);
+    c.globalCompositeOperation = 'source-over';
+    c.strokeStyle = 'rgba(210,235,255,.24)';
+    c.lineWidth = Math.max(1, Math.min(W,H) * 0.028);
+    c.strokeRect(-W*0.36, -H*0.22, W*0.72, H*0.46);
+
     endShape(c);
   }
 
@@ -4369,6 +4395,13 @@ function onEnemyKilled(e){
     const f = state.field;
     for(const t of state.turrets){
       const selected = t.id === state.selectedTurretId; const tw = f.tileW * 0.62; const th = f.tileH * 0.62;
+      const floorGlow = ctx.createRadialGradient(t.x, t.y + th*0.24, 4, t.x, t.y + th*0.24, tw*0.68);
+      floorGlow.addColorStop(0, 'rgba(120,190,255,.24)');
+      floorGlow.addColorStop(1, 'rgba(120,190,255,0)');
+      ctx.fillStyle = floorGlow;
+      ctx.beginPath();
+      ctx.ellipse(t.x, t.y + th*0.26, tw*0.55, th*0.22, 0, 0, Math.PI*2);
+      ctx.fill();
       if(selected){ ctx.strokeStyle = 'rgba(114,179,255,0.9)'; ctx.lineWidth = 2; ctx.strokeRect(t.x - tw/2 - 5, t.y - th/2 - 5, tw + 10, th + 10); }
       drawInstallModel(ctx, t.base, t.x, t.y, tw, th, t.level, false);
       if(t.family === 'wall' || t.family === 'bunker'){
