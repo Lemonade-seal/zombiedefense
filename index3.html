@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-27-05';
+  const BUILD_VERSION = '2026-04-27-06';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -231,6 +231,7 @@
     '페이지 전환은 카드 슬라이드(스와이프) 방식만 유지',
     '적 계열(STALKER/HOPPER/SPECTER) 추가로 웨이브 조합 다양화',
     '적 이동에 지그재그/부유/돌진 모션을 적용해 전투 리듬 강화',
+    '초반 적 비주얼을 RED/BLUE 레이더 스타일로 재디자인',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -373,8 +374,8 @@ const PASSIVES = [
 
 
   const FAMILIES = [
-    {family:'walker', label:'WALKER', baseHp:34, hpInc:7, speed:30, speedInc:1.2, reward:7, size:17, color:'#8ed26b', body:'walker', baseDamage:4},
-    {family:'runner', label:'RUNNER', baseHp:24, hpInc:5, speed:53, speedInc:1.6, reward:8, size:15, color:'#f2cf69', body:'runner', baseDamage:5, dodge:0.08, enragedAt:0.45},
+    {family:'walker', label:'WALKER', baseHp:34, hpInc:7, speed:30, speedInc:1.2, reward:7, size:17, color:'#ff6e6e', body:'raider_red', baseDamage:4},
+    {family:'runner', label:'RUNNER', baseHp:24, hpInc:5, speed:53, speedInc:1.6, reward:8, size:15, color:'#69a7ff', body:'raider_blue', baseDamage:5, dodge:0.08, enragedAt:0.45},
     {family:'brute', label:'BRUTE', baseHp:82, hpInc:13, speed:19, speedInc:0.8, reward:13, size:22, color:'#e98b8b', body:'brute', baseDamage:9, armor:0.12, smash:1},
     {family:'toxic', label:'TOXIC', baseHp:44, hpInc:8, speed:32, speedInc:1.1, reward:10, size:18, color:'#7be2a0', body:'toxic', baseDamage:5, deathPoison:5},
     {family:'shield', label:'SHIELD', baseHp:52, hpInc:9, speed:28, speedInc:1.0, reward:11, size:18, color:'#9fc3ff', body:'shield', baseDamage:6, shield:26, armor:0.08},
@@ -4548,13 +4549,31 @@ function onEnemyKilled(e){
     const legDrag = -0.10 - shamble * 0.14;
     const motionTilt = Math.max(-0.22, Math.min(0.22, (e.motionX || 0) / Math.max(16, s * 2.6)));
     const pulse = Math.sin((e.motionClock || 0) * 1.8 + (e.animSeed || 0)) * 0.5 + 0.5;
+    const shade = (hex, amount=0) => {
+      const raw = String(hex || '').trim();
+      const m = raw.match(/^#([0-9a-f]{6})$/i);
+      if(!m) return raw || '#888';
+      const v = parseInt(m[1], 16);
+      const r = (v >> 16) & 255;
+      const g = (v >> 8) & 255;
+      const b = v & 255;
+      const lerp = (ch) => amount >= 0 ? Math.round(ch + (255 - ch) * amount) : Math.round(ch * (1 + amount));
+      return `rgb(${Math.max(0, Math.min(255, lerp(r)))}, ${Math.max(0, Math.min(255, lerp(g)))}, ${Math.max(0, Math.min(255, lerp(b)))})`;
+    };
 
     const limb = (x, y, w, h, rot, color) => {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(rot);
-      ctx.fillStyle = color;
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, shade(color, 0.28));
+      g.addColorStop(0.58, color);
+      g.addColorStop(1, shade(color, -0.34));
+      ctx.fillStyle = g;
       ctx.fillRect(-w/2, 0, w, h);
+      ctx.strokeStyle = 'rgba(8,10,14,.42)';
+      ctx.lineWidth = Math.max(1, w * 0.10);
+      ctx.strokeRect(-w/2, 0, w, h);
       ctx.restore();
     };
     const head = (r, tint=0) => {
@@ -4563,6 +4582,9 @@ function onEnemyKilled(e){
       ctx.rotate(headTilt);
       ctx.fillStyle = e.color;
       ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(8,10,14,.45)';
+      ctx.lineWidth = Math.max(1.2, r * 0.14);
+      ctx.stroke();
       ctx.fillStyle = '#0d0d0d';
       ctx.fillRect(-r*0.55, -r*0.08, Math.max(2, r*0.26), Math.max(2, r*0.22));
       ctx.fillRect(r*0.18, -r*0.04, Math.max(2, r*0.24), Math.max(2, r*0.20));
@@ -4578,8 +4600,15 @@ function onEnemyKilled(e){
     const torsoRect = (w, h) => {
       ctx.save();
       ctx.rotate(torsoTilt);
-      ctx.fillStyle = e.color;
+      const g = ctx.createLinearGradient(0, -s*0.02, 0, h);
+      g.addColorStop(0, shade(e.color, 0.24));
+      g.addColorStop(0.56, e.color);
+      g.addColorStop(1, shade(e.color, -0.30));
+      ctx.fillStyle = g;
       ctx.fillRect(-w/2, -s*0.02, w, h);
+      ctx.strokeStyle = 'rgba(8,10,14,.40)';
+      ctx.lineWidth = Math.max(1, s * 0.05);
+      ctx.strokeRect(-w/2, -s*0.02, w, h);
       ctx.fillStyle = 'rgba(34,18,18,.24)';
       ctx.fillRect(-w*0.24, h*0.20, w*0.14, h*0.22);
       ctx.fillRect(w*0.06, h*0.48, w*0.12, h*0.18);
@@ -4601,6 +4630,28 @@ function onEnemyKilled(e){
     }
 
     switch(e.body){
+      case 'raider_red':
+        limb(-s*0.18, s*0.16, s*0.11, s*0.40, legLead * 1.08, e.color);
+        limb(s*0.16, s*0.16, s*0.11, s*0.38, legDrag * 0.96, e.color);
+        limb(-s*0.30, -s*0.02, s*0.09, s*0.30, armLead * 0.9, e.color);
+        limb(s*0.28, 0.00, s*0.09, s*0.30, armDrag * 0.82, e.color);
+        torsoRect(s*0.46, s*0.52);
+        head(s*0.24, 0.24);
+        ctx.fillStyle = '#ffd0d0';
+        poly(ctx,[[-s*0.16,-s*0.42],[-s*0.04,-s*0.52],[-s*0.02,-s*0.34]]);
+        poly(ctx,[[s*0.16,-s*0.42],[s*0.04,-s*0.52],[s*0.02,-s*0.34]]);
+        break;
+      case 'raider_blue':
+        limb(-s*0.16, s*0.12, s*0.09, s*0.42, legLead * 1.42, e.color);
+        limb(s*0.14, s*0.12, s*0.09, s*0.40, legDrag * 1.30, e.color);
+        limb(-s*0.24, -s*0.07, s*0.08, s*0.24, armLead * 1.24, e.color);
+        limb(s*0.22, -s*0.03, s*0.08, s*0.26, armDrag * 1.16, e.color);
+        ctx.save(); ctx.rotate(torsoTilt - 0.12); torsoRect(s*0.40, s*0.44); ctx.restore();
+        head(s*0.22, 0.2);
+        ctx.fillStyle = '#cde0ff';
+        ctx.fillRect(-s*0.20,-s*0.02,s*0.40,s*0.06);
+        ctx.fillRect(-s*0.08,s*0.10,s*0.16,s*0.05);
+        break;
       case 'walker':
         limb(-s*0.18, s*0.12, s*0.09, s*0.42, legLead, e.color);
         limb(s*0.14, s*0.16, s*0.09, s*0.40, legDrag, e.color);
