@@ -220,13 +220,12 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-27-02';
+  const BUILD_VERSION = '2026-04-27-01';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
     '기물 판매 후 전장에 남던 파란 원 이펙트 정리',
     '업데이트 후 실행 시 업데이트 오버레이가 다시 표시되도록 빌드 버전 갱신',
-    '설치 취소 버튼 제거 및 카드 드래그 설치 흐름 정리',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -1122,12 +1121,6 @@ function injectRuntimeUi(){
     </div>
   `;
   fieldWrap.appendChild(panels);
-
-  const dragBadge = document.createElement('div');
-  dragBadge.id = 'installDragBadge';
-  dragBadge.className = 'installDragBadge';
-  dragBadge.textContent = '드래그 설치';
-  document.body.appendChild(dragBadge);
 
   const dragBadge = document.createElement('div');
   dragBadge.id = 'installDragBadge';
