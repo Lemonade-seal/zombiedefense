@@ -4251,20 +4251,44 @@ function onEnemyKilled(e){
     const legLead = 0.22 + shamble * 0.18;
     const legDrag = -0.10 - shamble * 0.14;
 
-    const limb = (x, y, w, h, rot, color) => {
+    const limb = (x, y, w, h, rot, color, opts={}) => {
+      const claw = opts.claw ?? true;
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(rot);
-      ctx.fillStyle = color;
+      const lg = ctx.createLinearGradient(0, 0, 0, h);
+      lg.addColorStop(0, color);
+      lg.addColorStop(0.58, shade(color, -18));
+      lg.addColorStop(1, shade(color, -34));
+      ctx.fillStyle = lg;
       ctx.fillRect(-w/2, 0, w, h);
+      ctx.fillStyle = 'rgba(255,255,255,.09)';
+      ctx.fillRect(-w*0.36, h*0.08, Math.max(1.2, w*0.24), h*0.72);
+      ctx.fillStyle = 'rgba(22,8,8,.24)';
+      ctx.fillRect(w*0.12, h*0.24, Math.max(1.2, w*0.26), h*0.58);
+      if(claw){
+        ctx.fillStyle = shade(color, -46);
+        ctx.beginPath();
+        ctx.moveTo(-w*0.30, h);
+        ctx.lineTo(-w*0.06, h + h*0.16);
+        ctx.lineTo(w*0.14, h);
+        ctx.fill();
+      }
       ctx.restore();
     };
     const head = (r, tint=0) => {
       ctx.save();
       ctx.translate(0, -s*0.28);
       ctx.rotate(headTilt);
-      ctx.fillStyle = e.color;
+      const hg = ctx.createRadialGradient(-r*0.2, -r*0.24, r*0.2, 0, 0, r);
+      hg.addColorStop(0, shade(e.color, 20));
+      hg.addColorStop(0.66, e.color);
+      hg.addColorStop(1, shade(e.color, -28));
+      ctx.fillStyle = hg;
       ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(28,10,10,.28)';
+      ctx.lineWidth = Math.max(1, r * 0.10);
+      ctx.beginPath(); ctx.arc(0, 0, r*0.96, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = '#0d0d0d';
       ctx.fillRect(-r*0.55, -r*0.08, Math.max(2, r*0.26), Math.max(2, r*0.22));
       ctx.fillRect(r*0.18, -r*0.04, Math.max(2, r*0.24), Math.max(2, r*0.20));
@@ -4273,23 +4297,50 @@ function onEnemyKilled(e){
       ctx.fillRect(-r*0.52, -r*0.12, Math.max(1.8, r*0.18), Math.max(1.8, r*0.14));
       ctx.fillRect(r*0.22, -r*0.10, Math.max(1.8, r*0.16), Math.max(1.8, r*0.12));
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#341313';
+      ctx.fillStyle = '#311010';
       ctx.fillRect(-r*0.20, r*0.34, r*0.36, Math.max(2, r*0.12));
+      ctx.fillStyle = '#f8e8d3';
+      ctx.fillRect(-r*0.14, r*0.36, Math.max(1.1, r*0.06), Math.max(1.8, r*0.10));
+      ctx.fillRect(r*0.03, r*0.36, Math.max(1.1, r*0.06), Math.max(1.8, r*0.10));
+      ctx.fillStyle = 'rgba(255,255,255,.12)';
+      ctx.beginPath();
+      ctx.arc(-r*0.28, -r*0.30, Math.max(1, r*0.14), 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     };
     const torsoRect = (w, h) => {
       ctx.save();
       ctx.rotate(torsoTilt);
-      ctx.fillStyle = e.color;
+      const tg = ctx.createLinearGradient(0, -s*0.02, 0, h);
+      tg.addColorStop(0, shade(e.color, 14));
+      tg.addColorStop(0.48, e.color);
+      tg.addColorStop(1, shade(e.color, -26));
+      ctx.fillStyle = tg;
       ctx.fillRect(-w/2, -s*0.02, w, h);
+      ctx.fillStyle = 'rgba(255,255,255,.07)';
+      ctx.fillRect(-w*0.36, h*0.08, Math.max(1.5, w*0.22), h*0.74);
       ctx.fillStyle = 'rgba(34,18,18,.24)';
       ctx.fillRect(-w*0.24, h*0.20, w*0.14, h*0.22);
       ctx.fillRect(w*0.06, h*0.48, w*0.12, h*0.18);
+      ctx.strokeStyle = 'rgba(30,9,9,.20)';
+      ctx.lineWidth = Math.max(1, w * 0.045);
+      ctx.beginPath();
+      ctx.moveTo(-w*0.1, h*0.14);
+      ctx.lineTo(-w*0.08, h*0.84);
+      ctx.stroke();
       ctx.restore();
     };
 
     ctx.save();
     ctx.translate(e.x + sway, e.y + bob);
+
+    const bruises = () => {
+      ctx.fillStyle = 'rgba(54,16,18,.22)';
+      ctx.beginPath();
+      ctx.ellipse(-s*0.12, -s*0.02, s*0.10, s*0.06, -0.35, 0, Math.PI*2);
+      ctx.ellipse(s*0.14, s*0.12, s*0.09, s*0.05, 0.3, 0, Math.PI*2);
+      ctx.fill();
+    };
 
     switch(e.body){
       case 'walker':
@@ -4298,6 +4349,7 @@ function onEnemyKilled(e){
         limb(-s*0.28, -s*0.02, s*0.08, s*0.34, armLead, e.color);
         limb(s*0.26, s*0.02, s*0.08, s*0.38, armDrag, e.color);
         torsoRect(s*0.42, s*0.50);
+        bruises();
         head(s*0.24, 0.2);
         break;
       case 'runner':
@@ -4314,6 +4366,7 @@ function onEnemyKilled(e){
         limb(-s*0.38, -s*0.02, s*0.12, s*0.34, armLead * 0.7, e.color);
         limb(s*0.36, s*0.04, s*0.12, s*0.36, armDrag * 0.5, e.color);
         torsoRect(s*0.58, s*0.60);
+        bruises();
         head(s*0.28, 0.18);
         break;
       case 'toxic':
@@ -4332,6 +4385,7 @@ function onEnemyKilled(e){
         torsoRect(s*0.34, s*0.48);
         head(s*0.23, 0.08);
         ctx.fillStyle = '#dfeeff'; ctx.beginPath(); ctx.moveTo(s*0.14,-s*0.10); ctx.lineTo(s*0.40,s*0.04); ctx.lineTo(s*0.36,s*0.34); ctx.lineTo(s*0.12,s*0.28); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(88,124,168,.65)'; ctx.lineWidth = Math.max(1.2, s*0.04); ctx.stroke();
         break;
       case 'spitter':
         limb(-s*0.15, s*0.16, s*0.09, s*0.32, legLead, e.color);
@@ -4388,6 +4442,10 @@ function onEnemyKilled(e){
       case 'phantom':
         ctx.globalAlpha = 0.72;
         head(s*0.22, 0.08);
+        const pg = ctx.createLinearGradient(0,-s*0.1,0,s*0.44);
+        pg.addColorStop(0,'rgba(218,230,255,.82)');
+        pg.addColorStop(1,'rgba(112,126,178,.30)');
+        ctx.fillStyle = pg;
         ctx.beginPath(); ctx.moveTo(-s*0.24,-s*0.02); ctx.lineTo(s*0.24,-s*0.02); ctx.lineTo(s*0.18,s*0.44); ctx.lineTo(0,s*0.32 + Math.sin(pace*1.4)*4); ctx.lineTo(-s*0.18,s*0.44); ctx.closePath(); ctx.fill();
         ctx.globalAlpha = 1;
         break;
@@ -4418,6 +4476,16 @@ function onEnemyKilled(e){
     if(!e.boss){
       ctx.fillStyle = 'rgba(120,255,132,.18)';
       ctx.fillRect(-s*0.18,-s*0.58,s*0.36,4);
+      if((e.hp / e.maxHp) < 0.35){
+        ctx.fillStyle = 'rgba(255,86,86,.16)';
+        ctx.fillRect(-s*0.16,-s*0.50,s*0.32,3);
+      }
+    } else {
+      ctx.strokeStyle = 'rgba(255,178,126,.42)';
+      ctx.lineWidth = Math.max(1.6, s*0.05);
+      ctx.beginPath();
+      ctx.arc(0, s*0.10, s*0.52 + Math.sin(pace*0.8)*1.5, Math.PI*0.1, Math.PI*0.9);
+      ctx.stroke();
     }
     ctx.restore();
   }
