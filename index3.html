@@ -60,6 +60,8 @@
   .caption{display:grid;grid-template-columns:1fr auto;align-items:center;color:var(--muted);font-size:11px;font-weight:700;padding:0 2px;gap:8px;min-height:34px}
   .captionRight{display:flex;gap:8px;align-items:center}
   .dots{display:flex;gap:5px;align-items:center}
+  .pageNavBtns{display:flex;gap:6px;align-items:center}
+  .pageNavBtn{min-height:28px;padding:0 10px;font-size:11px;border-radius:9px}
   .seg{display:flex;gap:6px;align-items:center}
   .seg .tab{min-height:30px;padding:0 10px;font-size:11px;border-radius:10px}
   .dot{width:8px;height:8px;border-radius:999px;background:#334157;border:1px solid #495872}
@@ -176,6 +178,10 @@
           <button id="modePassiveBtn" class="small tab">패시브</button>
         </div>
         <div class="dots" id="pageDots"></div>
+        <div class="pageNavBtns">
+          <button id="pagePrevBtn" class="pageNavBtn">◀</button>
+          <button id="pageNextBtn" class="pageNavBtn">▶</button>
+        </div>
       </div>
     </div>
     <div class="sliderWrap" id="sliderWrap"><div class="track" id="deckTrack"></div></div>
@@ -213,6 +219,8 @@
   const sellBtn = document.getElementById('sellBtn');
   const modeInstallBtn = document.getElementById('modeInstallBtn');
   const modePassiveBtn = document.getElementById('modePassiveBtn');
+  const pagePrevBtn = document.getElementById('pagePrevBtn');
+  const pageNextBtn = document.getElementById('pageNextBtn');
   const app = document.getElementById('app');
   const controls = document.querySelector('.controls');
 
@@ -492,6 +500,13 @@ const state = {
   state.dragInstallMoved = false;
   state.dragInstallCardKey = '';
   state.dragInstallTouchId = null;
+  state.dragInstallHoldTimer = 0;
+  state.dragInstallHoldKey = '';
+  state.dragInstallHoldPointerId = null;
+  state.dragInstallHoldTouchId = null;
+  state.dragInstallHoldX = 0;
+  state.dragInstallHoldY = 0;
+  state.dragInstallHoldTarget = null;
 
 
 const installMap = Object.fromEntries(INSTALLS.map(i => [i.key, i]));
@@ -2872,13 +2887,13 @@ function buildDeck(){
         updateDeckSelection();
       });
       if(state.mode === 'install'){
-        card.addEventListener('pointerdown', ev => beginInstallDragFromCard(ev, item.key));
+        card.addEventListener('pointerdown', ev => queueInstallDragFromCard(ev, item.key, null));
         card.addEventListener('touchstart', ev => {
           const touch = ev.changedTouches && ev.changedTouches[0];
           if(!touch) return;
           ev.preventDefault();
           ev.stopPropagation();
-          beginInstallDragFromCard(pseudoPointerEventFromTouch(touch, card), item.key, touch.identifier);
+          queueInstallDragFromCard(pseudoPointerEventFromTouch(touch, card), item.key, touch.identifier);
         }, { passive:false });
       }
       pageEl.appendChild(card);
@@ -2909,6 +2924,8 @@ function syncPageUI(){
   const end = Math.min(list.length, start + PAGE_SIZE);
   pageLabel.textContent = `${state.mode === 'install' ? 'INSTALL' : 'PASSIVE'} ${start+1}-${end} / ${list.length}`;
   [...pageDots.children].forEach((d, i) => d.classList.toggle('active', i === state.page));
+  if(pagePrevBtn) pagePrevBtn.disabled = state.page <= 0;
+  if(pageNextBtn) pageNextBtn.disabled = state.page >= pageCount() - 1;
 }
 
 function drawPreview(cv, item){
@@ -3044,6 +3061,19 @@ function resize(){
     if(sliderWrap) sliderWrap.classList.remove('dragLock');
   }
 
+  function clearPendingInstallDrag(){
+    if(state.dragInstallHoldTimer){
+      clearTimeout(state.dragInstallHoldTimer);
+      state.dragInstallHoldTimer = 0;
+    }
+    state.dragInstallHoldKey = '';
+    state.dragInstallHoldPointerId = null;
+    state.dragInstallHoldTouchId = null;
+    state.dragInstallHoldX = 0;
+    state.dragInstallHoldY = 0;
+    state.dragInstallHoldTarget = null;
+  }
+
   function updateInstallDragBadge(ev){
     if(!installDragBadge) return;
     if(!state.dragInstallActive){
@@ -3100,6 +3130,33 @@ function resize(){
       try{ target.setPointerCapture(ev.pointerId); } catch(err){}
     }
     updateInstallDragBadge(ev);
+  }
+
+  function queueInstallDragFromCard(ev, key='', touchId=null){
+    if(state.mode !== 'install') return;
+    if(ev.button !== undefined && ev.button !== 0) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    clearPendingInstallDrag();
+    state.dragInstallHoldKey = key || state.selectedInstall;
+    state.dragInstallHoldPointerId = Number.isFinite(ev.pointerId) ? ev.pointerId : null;
+    state.dragInstallHoldTouchId = touchId;
+    state.dragInstallHoldX = ev.clientX || 0;
+    state.dragInstallHoldY = ev.clientY || 0;
+    state.dragInstallHoldTarget = ev.currentTarget || null;
+    state.dragInstallHoldTimer = setTimeout(() => {
+      state.dragInstallHoldTimer = 0;
+      beginInstallDragFromCard({
+        clientX: state.dragInstallHoldX,
+        clientY: state.dragInstallHoldY,
+        pointerId: state.dragInstallHoldPointerId,
+        button: 0,
+        currentTarget: state.dragInstallHoldTarget,
+        preventDefault(){},
+        stopPropagation(){},
+      }, state.dragInstallHoldKey, state.dragInstallHoldTouchId);
+      clearPendingInstallDrag();
+    }, 1000);
   }
 
   function updateInstallDrag(ev){
@@ -4002,9 +4059,50 @@ function onEnemyKilled(e){
 
   function shapeCtx(c, x,y,w,h,color){ c.save(); c.translate(x,y); c.fillStyle = color; c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = Math.max(1, Math.min(w,h)*0.05); }
   function endShape(c){ c.restore(); }
-  function barrel(c,x,y,w,h){ c.fillRect(x,y,w,h); }
-  function dome(c,x,y,r){ c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill(); }
-  function poly(c,pts){ c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.closePath(); c.fill(); }
+  function barrel(c,x,y,w,h){
+    const grad = c.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, 'rgba(255,255,255,.42)');
+    grad.addColorStop(0.22, 'rgba(255,255,255,.16)');
+    grad.addColorStop(1, 'rgba(0,0,0,.32)');
+    c.save();
+    c.fillRect(x,y,w,h);
+    c.fillStyle = grad;
+    c.fillRect(x,y,w,h);
+    c.strokeStyle = 'rgba(220,238,255,.30)';
+    c.lineWidth = Math.max(1, Math.min(w,h) * 0.12);
+    c.strokeRect(x + 0.5, y + 0.5, Math.max(0,w - 1), Math.max(0,h - 1));
+    c.restore();
+  }
+  function dome(c,x,y,r){
+    const rg = c.createRadialGradient(x - r*0.24, y - r*0.34, r*0.20, x, y, r);
+    rg.addColorStop(0, 'rgba(255,255,255,.46)');
+    rg.addColorStop(0.28, 'rgba(255,255,255,.16)');
+    rg.addColorStop(1, 'rgba(0,0,0,.26)');
+    c.save();
+    c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill();
+    c.fillStyle = rg;
+    c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill();
+    c.strokeStyle = 'rgba(210,235,255,.36)';
+    c.lineWidth = Math.max(1, r * 0.22);
+    c.beginPath(); c.arc(x,y,r*0.98,0,Math.PI*2); c.stroke();
+    c.restore();
+  }
+  function poly(c,pts){
+    c.save();
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.closePath(); c.fill();
+    const minY = Math.min(...pts.map(p => p[1]));
+    const maxY = Math.max(...pts.map(p => p[1]));
+    const grad = c.createLinearGradient(0, minY, 0, maxY);
+    grad.addColorStop(0, 'rgba(255,255,255,.36)');
+    grad.addColorStop(0.35, 'rgba(255,255,255,.12)');
+    grad.addColorStop(1, 'rgba(0,0,0,.30)');
+    c.fillStyle = grad;
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(215,238,255,.26)';
+    c.lineWidth = 1.4;
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.closePath(); c.stroke();
+    c.restore();
+  }
 
   function drawInstallModel(c, item, cx, cy, w, h, level=1, isCard=false){
     const steel = '#d9e4ef';
@@ -4857,9 +4955,28 @@ function onEnemyKilled(e){
       showBanner('하단 카드에서 전장으로 드래그해 설치하세요.', 0.9);
     }
   }
-  function onPointerMove(ev){ updateInstallDrag(ev); }
-  function onPointerUp(ev){ endInstallDrag(ev); }
+  function onPointerMove(ev){
+    if(state.dragInstallHoldTimer && Number.isFinite(state.dragInstallHoldPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallHoldPointerId === ev.pointerId){
+      const moved = Math.hypot((ev.clientX || 0) - state.dragInstallHoldX, (ev.clientY || 0) - state.dragInstallHoldY);
+      if(moved > 10) clearPendingInstallDrag();
+    }
+    updateInstallDrag(ev);
+  }
+  function onPointerUp(ev){
+    if(state.dragInstallHoldTimer && Number.isFinite(state.dragInstallHoldPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallHoldPointerId === ev.pointerId){
+      clearPendingInstallDrag();
+      return;
+    }
+    endInstallDrag(ev);
+  }
   function onTouchMove(ev){
+    if(state.dragInstallHoldTimer && state.dragInstallHoldTouchId != null){
+      const holdTouch = findTouchByIdentifier(ev.touches, state.dragInstallHoldTouchId) || findTouchByIdentifier(ev.changedTouches, state.dragInstallHoldTouchId);
+      if(holdTouch){
+        const moved = Math.hypot((holdTouch.clientX || 0) - state.dragInstallHoldX, (holdTouch.clientY || 0) - state.dragInstallHoldY);
+        if(moved > 10) clearPendingInstallDrag();
+      }
+    }
     if(!state.dragInstallActive || state.dragInstallTouchId == null) return;
     const touch = findTouchByIdentifier(ev.touches, state.dragInstallTouchId) || findTouchByIdentifier(ev.changedTouches, state.dragInstallTouchId);
     if(!touch) return;
@@ -4867,6 +4984,13 @@ function onEnemyKilled(e){
     updateInstallDrag(pseudoPointerEventFromTouch(touch));
   }
   function onTouchEnd(ev){
+    if(state.dragInstallHoldTimer && state.dragInstallHoldTouchId != null){
+      const holdTouch = findTouchByIdentifier(ev.changedTouches, state.dragInstallHoldTouchId);
+      if(holdTouch){
+        clearPendingInstallDrag();
+        return;
+      }
+    }
     if(!state.dragInstallActive || state.dragInstallTouchId == null) return;
     const touch = findTouchByIdentifier(ev.changedTouches, state.dragInstallTouchId);
     if(!touch) return;
@@ -4874,6 +4998,13 @@ function onEnemyKilled(e){
     endInstallDrag(pseudoPointerEventFromTouch(touch));
   }
   function onTouchCancel(ev){
+    if(state.dragInstallHoldTimer && state.dragInstallHoldTouchId != null){
+      const holdTouch = findTouchByIdentifier(ev.changedTouches, state.dragInstallHoldTouchId);
+      if(holdTouch){
+        clearPendingInstallDrag();
+        return;
+      }
+    }
     if(!state.dragInstallActive || state.dragInstallTouchId == null) return;
     const touch = findTouchByIdentifier(ev.changedTouches, state.dragInstallTouchId);
     if(!touch) return;
@@ -4881,6 +5012,10 @@ function onEnemyKilled(e){
     clearInstallDragState();
   }
   function onPointerCancel(ev){
+    if(state.dragInstallHoldTimer && Number.isFinite(state.dragInstallHoldPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallHoldPointerId === ev.pointerId){
+      clearPendingInstallDrag();
+      return;
+    }
     if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
     if(Number.isFinite(ev.pointerId) && canvas.releasePointerCapture){
       try{ canvas.releasePointerCapture(ev.pointerId); } catch(err){}
@@ -4925,6 +5060,8 @@ function onEnemyKilled(e){
   sellBtn.addEventListener('click', sellSelected);
   modeInstallBtn.addEventListener('click', () => changeMode('install'));
   modePassiveBtn.addEventListener('click', () => changeMode('passive'));
+  if(pagePrevBtn) pagePrevBtn.addEventListener('click', () => scrollToPage(state.page - 1));
+  if(pageNextBtn) pageNextBtn.addEventListener('click', () => scrollToPage(state.page + 1));
   menuBtn.addEventListener('click', () => {
     if(state.menuOpen && state.authFlowUnlocked){
       closeMenu();
