@@ -209,7 +209,7 @@
   const deckTrack = document.getElementById('deckTrack');
   const sliderWrap = document.getElementById('sliderWrap');
   const pageDots = document.getElementById('pageDots');
-  const selectedName = document.getElementById('selectedName');
+ㄴ  const selectedName = document.getElementById('selectedName');
   const pageLabel = document.getElementById('pageLabel');
   const actionInfo = document.getElementById('actionInfo');
   const startBtn = document.getElementById('startBtn');
@@ -235,8 +235,12 @@
     '기물 판매 후 전장에 남던 파란 원 이펙트 정리',
     '게임 실행 시 로그인 화면부터 시작되도록 초기 진입 플로우 조정',
     '업데이트 후 실행 시 업데이트 오버레이가 반드시 표시되도록 보강',
-    '카드 롱프레스 드래그 시작 시간을 1초 → 0.5초로 단축',
+    '카드 롱프레스 드래그 시작 시간을 1초 → 0.1초로 단축',
     '페이지 전환은 카드 슬라이드(스와이프) 방식만 유지',
+  ];
+  const REQUIRED_PATCH_NOTES = [
+    '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
+    '업데이트 후 실행 시 업데이트 오버레이가 반드시 표시되도록 보강',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -1811,7 +1815,8 @@ function currentUserLabel(){
 
 function renderPatchNotes(){
   if(!patchNotesSummary) return;
-  const items = Array.isArray(PATCH_NOTES) ? PATCH_NOTES.filter(Boolean) : [];
+  const merged = [...REQUIRED_PATCH_NOTES, ...(Array.isArray(PATCH_NOTES) ? PATCH_NOTES : [])];
+  const items = [...new Set(merged.map(item => String(item || '').trim()).filter(Boolean))];
   const listHtml = items.length
     ? `<ul class="patchNotesList">${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
     : '<div>표시할 패치노트가 없습니다.</div>';
@@ -5146,7 +5151,7 @@ function onEnemyKilled(e){
     renderLeaderboard([]);
     renderPresence([], 0);
     renderChatMessages([]);
-    await playUpdateOverlay(false);
+    await playUpdateOverlay(true);
     await hydrateSession();
     requestAnimationFrame(loop);
   }
