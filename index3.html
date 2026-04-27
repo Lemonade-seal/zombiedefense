@@ -228,13 +228,15 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-27-02';
+  const BUILD_VERSION = '2026-04-27-03';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
     '기물 판매 후 전장에 남던 파란 원 이펙트 정리',
     '게임 실행 시 로그인 화면부터 시작되도록 초기 진입 플로우 조정',
     '업데이트 후 실행 시 업데이트 오버레이가 반드시 표시되도록 보강',
+    '카드 롱프레스 드래그 시작 시간을 1초 → 0.5초로 단축',
+    '페이지 전환은 카드 슬라이드(스와이프) 방식만 유지',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -2891,8 +2893,6 @@ function buildDeck(){
         card.addEventListener('touchstart', ev => {
           const touch = ev.changedTouches && ev.changedTouches[0];
           if(!touch) return;
-          ev.preventDefault();
-          ev.stopPropagation();
           queueInstallDragFromCard(pseudoPointerEventFromTouch(touch, card), item.key, touch.identifier);
         }, { passive:false });
       }
@@ -3135,8 +3135,6 @@ function resize(){
   function queueInstallDragFromCard(ev, key='', touchId=null){
     if(state.mode !== 'install') return;
     if(ev.button !== undefined && ev.button !== 0) return;
-    ev.preventDefault();
-    ev.stopPropagation();
     clearPendingInstallDrag();
     state.dragInstallHoldKey = key || state.selectedInstall;
     state.dragInstallHoldPointerId = Number.isFinite(ev.pointerId) ? ev.pointerId : null;
@@ -3156,7 +3154,7 @@ function resize(){
         stopPropagation(){},
       }, state.dragInstallHoldKey, state.dragInstallHoldTouchId);
       clearPendingInstallDrag();
-    }, 1000);
+    }, 500);
   }
 
   function updateInstallDrag(ev){
