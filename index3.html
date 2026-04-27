@@ -40,8 +40,8 @@
   .nickTicker span{display:inline-block;white-space:nowrap;padding-right:24px}
   .nickTicker.marqueeLoop{animation-name:nickTickerLoop;animation-duration:var(--nick-duration,6s);animation-timing-function:linear;animation-iteration-count:infinite;animation-fill-mode:both}
   @keyframes nickTickerLoop{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--nick-travel, 0px)))}}
-  .installCancelBtn{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;min-height:28px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,182,120,.65);background:rgba(42,24,12,.92);color:#ffe8c0;font-size:11px;font-weight:900;letter-spacing:.02em;box-shadow:0 10px 26px rgba(0,0,0,.28);backdrop-filter:blur(4px);z-index:16;pointer-events:auto;white-space:nowrap}
-  .installCancelBtn.open{display:inline-flex}
+  .installDragBadge{position:fixed;left:0;top:0;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;min-height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(155,255,205,.62);background:rgba(18,38,27,.92);color:#d6ffe9;font-size:11px;font-weight:900;letter-spacing:.02em;box-shadow:0 10px 28px rgba(0,0,0,.3);z-index:70;pointer-events:none;white-space:nowrap}
+  .installDragBadge.open{display:inline-flex}
   .controls{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}
   button{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;padding:0 12px;font-weight:800;font-size:13px;min-height:42px;transition:transform .08s ease, box-shadow .14s ease, filter .16s ease}
   button:active{transform:translateY(1px) scale(.992);filter:brightness(1.06)}
@@ -53,7 +53,7 @@
   button.small{min-height:34px;padding:0 10px;font-size:12px;border-radius:10px}
   button:disabled{opacity:.45}
   #fieldWrap{position:relative;min-height:0;background:#0c1118}
-  #game{display:block;width:100%;height:100%}
+  #game{display:block;width:100%;height:100%;touch-action:none}
   .msg{position:absolute;left:12px;right:12px;top:10px;pointer-events:none;display:flex;justify-content:center}
   #banner{display:none;background:rgba(8,12,18,.34);border:1px solid rgba(120,140,170,.32);border-radius:12px;padding:8px 12px;font-size:13px;font-weight:800;backdrop-filter:blur(3px);max-width:92%;text-align:center;opacity:0;transition:opacity .22s ease}
   .bottombar{padding:8px 10px 10px;border-top:1px solid var(--line);background:rgba(15,20,29,.98);display:grid;gap:8px;grid-template-rows:34px 116px 42px}
@@ -65,6 +65,7 @@
   .dot{width:8px;height:8px;border-radius:999px;background:#334157;border:1px solid #495872}
   .dot.active{background:#81c3ff}
   .sliderWrap{height:116px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-radius:14px}
+  .sliderWrap.dragLock{touch-action:none;overflow:hidden}
   .sliderWrap::-webkit-scrollbar{display:none}
   .track{display:flex;gap:8px;height:100%}
   .deckPage{flex:0 0 100%;height:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;scroll-snap-align:start}
@@ -219,12 +220,19 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-17-07';
+  const BUILD_VERSION = '2026-04-27-03';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
-    '설치 직후 기물 위에 설치 취소 버튼이 뜨도록 추가',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
     '기물 판매 후 전장에 남던 파란 원 이펙트 정리',
+    '게임 실행 시 로그인 화면부터 시작되도록 초기 진입 플로우 조정',
+    '업데이트 후 실행 시 업데이트 오버레이가 반드시 표시되도록 보강',
+    '카드 롱프레스 드래그 시작 시간을 1초 → 0.1초로 단축',
+    '페이지 전환은 카드 슬라이드(스와이프) 방식만 유지',
+  ];
+  const REQUIRED_PATCH_NOTES = [
+    '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
+    '업데이트 후 실행 시 업데이트 오버레이가 반드시 표시되도록 보강',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -236,6 +244,8 @@
   const SUPABASE_TABLE = 'game_profiles';
   const SUPABASE_PRESENCE_TABLE = 'game_presence';
   const SUPABASE_CHAT_TABLE = 'game_chat_messages';
+
+  removeLegacyPageNavButtons();
 
   injectRuntimeUi();
 
@@ -258,7 +268,7 @@
   const chatSendBtn = document.getElementById('chatSendBtn');
   const appOnlineStatus = document.getElementById('appOnlineStatus');
   const patchNotesSummary = document.getElementById('patchNotesSummary');
-  const installCancelBtn = document.getElementById('installCancelBtn');
+  const installDragBadge = document.getElementById('installDragBadge');
 
   const menuLayer = document.getElementById('menuLayer');
   const menuCloseBtn = document.getElementById('menuCloseBtn');
@@ -482,7 +492,21 @@ const state = {
   state.rankPanelOpen = false;
   state.presencePanelOpen = false;
   state.authSubscription = null;
-  state.pendingPlaceCancelId = null;
+  state.dragInstallActive = false;
+  state.dragInstallTile = null;
+  state.dragInstallPointerId = null;
+  state.dragInstallStartX = 0;
+  state.dragInstallStartY = 0;
+  state.dragInstallMoved = false;
+  state.dragInstallCardKey = '';
+  state.dragInstallTouchId = null;
+  state.dragInstallHoldTimer = 0;
+  state.dragInstallHoldKey = '';
+  state.dragInstallHoldPointerId = null;
+  state.dragInstallHoldTouchId = null;
+  state.dragInstallHoldX = 0;
+  state.dragInstallHoldY = 0;
+  state.dragInstallHoldTarget = null;
 
 
 const installMap = Object.fromEntries(INSTALLS.map(i => [i.key, i]));
@@ -541,6 +565,7 @@ function energyRegenPerSec(){
   return value;
 }
 function changeMode(mode){
+  clearInstallDragState();
   state.mode = mode;
   state.page = 0;
   state.selectedTurretId = null;
@@ -1113,12 +1138,11 @@ function injectRuntimeUi(){
   `;
   fieldWrap.appendChild(panels);
 
-  const installCancel = document.createElement('button');
-  installCancel.id = 'installCancelBtn';
-  installCancel.type = 'button';
-  installCancel.className = 'installCancelBtn';
-  installCancel.textContent = '설치 취소';
-  fieldWrap.appendChild(installCancel);
+  const dragBadge = document.createElement('div');
+  dragBadge.id = 'installDragBadge';
+  dragBadge.className = 'installDragBadge';
+  dragBadge.textContent = '드래그 설치';
+  document.body.appendChild(dragBadge);
 
   const layer = document.createElement('div');
   layer.id = 'menuLayer';
@@ -1129,7 +1153,7 @@ function injectRuntimeUi(){
         <div>
           <div id="menuEyebrow" class="menuEyebrow">LOGIN · ONLINE ACCOUNT</div>
           <h1 id="menuTitle">좀비 막기게임 로그인</h1>
-          <p id="menuSubtitle" class="menuSubtitle">로그인 전에는 로그인과 회원가입만 표시됩니다. 로그인 성공 후에만 시작 화면이 열립니다.</p>
+          <p id="menuSubtitle" class="menuSubtitle">로그인 전에는 로그인과 회원가입만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.</p>
         </div>
         <button id="menuCloseBtn" class="small">닫기</button>
       </div>
@@ -1164,7 +1188,7 @@ function injectRuntimeUi(){
           <div class="authBox">
             <div class="authBoxTitle">진행 방법 설명</div>
             <div class="authSummary">
-              회원가입 버튼으로 계정을 만든 뒤 <strong>가입한 이메일과 비밀번호</strong>로 로그인하면 그다음에 시작 화면이 열립니다.
+              회원가입 버튼으로 계정을 만든 뒤 <strong>가입한 이메일과 비밀번호</strong>로 로그인하면 전장 화면으로 바로 이동합니다.
               전장으로 이동한 뒤 상단 시작 버튼을 눌러야 첫 웨이브가 시작됩니다.
             </div>
           </div>
@@ -1562,13 +1586,18 @@ function delay(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function removeLegacyPageNavButtons(){
+  const legacyNodes = document.querySelectorAll('#pagePrevBtn, #pageNextBtn, .pageNavBtns');
+  legacyNodes.forEach(node => node.remove());
+}
+
 async function playUpdateOverlay(force=false){
   if(!updateOverlay || !updateGaugeFill || !updateGaugeText || !updateGaugeLabel) return false;
   let previous = '';
   try{
     previous = localStorage.getItem(BUILD_VERSION_KEY) || '';
   } catch(err){}
-  const changed = !!previous && previous !== BUILD_VERSION;
+  const changed = previous !== BUILD_VERSION;
   if(!force && !changed){
     try{ localStorage.setItem(BUILD_VERSION_KEY, BUILD_VERSION); } catch(err){}
     return false;
@@ -1630,6 +1659,59 @@ function resolveLoginEmail(loginValue=''){
 function isValidRecoveryEmail(value=''){
   const clean = normalizeRecoveryEmail(value);
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean);
+}
+
+function hasInvalidEmailStructure(value=''){
+  const clean = normalizeRecoveryEmail(value);
+  if(!clean || clean.length > 120) return true;
+  if(clean.includes('..')) return true;
+  const parts = clean.split('@');
+  if(parts.length !== 2) return true;
+  const [localPart, domainPart] = parts;
+  if(!localPart || !domainPart) return true;
+  if(localPart.startsWith('.') || localPart.endsWith('.')) return true;
+  if(domainPart.startsWith('-') || domainPart.endsWith('-')) return true;
+  if(domainPart.startsWith('.') || domainPart.endsWith('.')) return true;
+  if(!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(localPart)) return true;
+  if(!/^[a-z0-9.-]+$/i.test(domainPart)) return true;
+  if(!domainPart.includes('.')) return true;
+  const labels = domainPart.split('.');
+  if(labels.some(label => !label || label.startsWith('-') || label.endsWith('-'))) return true;
+  const tld = labels[labels.length - 1] || '';
+  if(!/^[a-z]{2,24}$/i.test(tld)) return true;
+  return false;
+}
+
+function isBlockedEmailDomain(domain=''){
+  const clean = String(domain || '').trim().toLowerCase();
+  const blocked = new Set([
+    'example.com',
+    'example.net',
+    'example.org',
+    'test.com',
+    'invalid',
+    'localhost',
+  ]);
+  return blocked.has(clean);
+}
+
+async function hasReachableEmailDomain(value=''){
+  const clean = normalizeRecoveryEmail(value);
+  if(hasInvalidEmailStructure(clean)) return false;
+  const domain = clean.split('@')[1];
+  if(!domain) return false;
+  if(isBlockedEmailDomain(domain)) return false;
+  try{
+    const query = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`;
+    const response = await fetch(query, { method: 'GET', cache: 'no-store' });
+    if(!response.ok) return false;
+    const payload = await response.json();
+    const statusCode = Number(payload?.Status);
+    const answers = Array.isArray(payload?.Answer) ? payload.Answer : [];
+    return statusCode === 0 && answers.length > 0;
+  } catch(err){
+    return false;
+  }
 }
 
 function isValidPassword(value=''){
@@ -1725,7 +1807,8 @@ function currentUserLabel(){
 
 function renderPatchNotes(){
   if(!patchNotesSummary) return;
-  const items = Array.isArray(PATCH_NOTES) ? PATCH_NOTES.filter(Boolean) : [];
+  const merged = [...REQUIRED_PATCH_NOTES, ...(Array.isArray(PATCH_NOTES) ? PATCH_NOTES : [])];
+  const items = [...new Set(merged.map(item => String(item || '').trim()).filter(Boolean))];
   const listHtml = items.length
     ? `<ul class="patchNotesList">${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
     : '<div>표시할 패치노트가 없습니다.</div>';
@@ -2346,8 +2429,8 @@ function renderMenu(view='auto'){
   if(forceAuth){
     if(menuEyebrow) menuEyebrow.textContent = 'LOGIN · ONLINE ACCOUNT';
     menuTitle.textContent = '좀비 막기게임 로그인';
-    menuSubtitle.textContent = '로그인 전에는 로그인 화면과 회원가입만 표시됩니다. 로그인 성공 후에만 시작 화면이 열립니다.';
-    authNotice.textContent = '회원가입이 완료되면 로그인 화면으로 자동 이동합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 시작 화면을 열 수 있습니다.';
+    menuSubtitle.textContent = '로그인 전에는 로그인 화면과 회원가입만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.';
+    authNotice.textContent = '회원가입이 완료되면 로그인 화면으로 자동 이동합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 전장 화면에 들어갈 수 있습니다.';
     return;
   }
   const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
@@ -2378,10 +2461,9 @@ async function applyOnlineUser(user, preferredName='', preferredRecoveryEmail=''
   updateUserBadge();
   await fetchOnlineProfile(true);
   startOnlineLoops();
-  renderMenu('home');
 }
 
-function validateRegisterForm(){
+async function validateRegisterForm(){
   const loginId = normalizeLoginId(registerIdInput.value || '');
   const password = String(registerPassInput.value || '');
   const passwordConfirm = String(registerPassConfirmInput?.value || '');
@@ -2391,7 +2473,14 @@ function validateRegisterForm(){
   if(!isValidPassword(password)){ setRegisterStatus('비밀번호는 영문 소문자, 숫자, 특수문자만 사용해 6자 이상 입력하세요.'); setAuthStatus('비밀번호는 영문 소문자, 숫자, 특수문자만 사용해 6자 이상 입력하세요.'); return null; }
   if(password !== passwordConfirm){ setRegisterStatus('비밀번호 재확인이 일치하지 않습니다.'); setAuthStatus('비밀번호 재확인이 일치하지 않습니다.'); return null; }
   if(!isValidDisplayName(displayName)){ setRegisterStatus('닉네임은 한글/영어/숫자/특수문자 조합 2~16자이며 공백은 사용할 수 없습니다.'); setAuthStatus('닉네임은 한글/영어/숫자/특수문자 조합 2~16자이며 공백은 사용할 수 없습니다.'); return null; }
-  if(!isValidRecoveryEmail(recoveryEmail)){ setRegisterStatus('이메일 주소를 올바르게 입력하세요.'); setAuthStatus('이메일 주소를 올바르게 입력하세요.'); return null; }
+  if(!isValidRecoveryEmail(recoveryEmail) || hasInvalidEmailStructure(recoveryEmail)){ setRegisterStatus('이메일 주소 형식이 올바르지 않습니다.'); setAuthStatus('이메일 주소 형식이 올바르지 않습니다.'); return null; }
+  setRegisterStatus('이메일 도메인 유효성을 확인하고 있습니다...', false, true);
+  const emailDomainReachable = await hasReachableEmailDomain(recoveryEmail);
+  if(!emailDomainReachable){
+    setRegisterStatus('실제 사용 가능한 이메일 도메인이 아닙니다. 올바른 이메일을 입력하세요.');
+    setAuthStatus('실제 사용 가능한 이메일 도메인이 아닙니다. 올바른 이메일을 입력하세요.');
+    return null;
+  }
   return { loginId, password, displayName, recoveryEmail };
 }
 
@@ -2402,9 +2491,9 @@ async function loginOnlineUser(){
   if(state.currentUser && !loginValue && !pass){
     state.authFlowUnlocked = true;
     updateAuthGate();
-    setAuthStatus('로그인 버튼을 눌러 시작 화면을 열었습니다.', true);
-    openMenu('home');
-    showBanner('시작 화면 열림', 1.2);
+    setAuthStatus('로그인 완료. 전장 화면으로 이동합니다.', true);
+    closeMenu();
+    showBanner('전장 이동', 1.2);
     return;
   }
   const authEmail = normalizeRecoveryEmail(loginValue);
@@ -2444,7 +2533,7 @@ async function loginOnlineUser(){
     updateAuthGate();
     loginPassInput.value = '';
     setAuthStatus(`${authEmail} 계정으로 로그인했습니다.`, true);
-    openMenu('home');
+    closeMenu();
     showBanner('온라인 로그인', 1.2);
   } catch(err){
     const message = err?.message || String(err);
@@ -2466,6 +2555,15 @@ async function registerOnlineUser(form){
   const agreedAt = form.privacyAgreedAt || state.registerPolicyAgreedAt || new Date().toISOString();
   const loginId = form.loginId;
   const authEmail = form.recoveryEmail;
+  const emailDomainReachable = await hasReachableEmailDomain(authEmail);
+  if(!emailDomainReachable){
+    setRegisterStatus('실제 사용 가능한 이메일만 회원가입할 수 있습니다.');
+    setAuthStatus('실제 사용 가능한 이메일만 회원가입할 수 있습니다.');
+    showBanner('회원가입 실패', 1.4);
+    state.registerSubmitInFlight = false;
+    authRegisterBtn.disabled = false;
+    return;
+  }
   try{
     const { data, error } = await state.supabase.auth.signUp({
       email: authEmail,
@@ -2542,34 +2640,43 @@ async function registerOnlineUser(form){
 }
 
 function requestRegisterApproval(){
-  const form = validateRegisterForm();
-  if(!form) return;
-  state.pendingRegisterForm = form;
-
   if(state.registerSubmitInFlight) return;
+  authRegisterBtn.disabled = true;
+  setRegisterStatus('회원가입 정보를 확인하고 있습니다...', false, true);
+  void (async () => {
+    try{
+      const form = await validateRegisterForm();
+      if(!form) return;
+      state.pendingRegisterForm = form;
 
-  if(state.registerPolicyApproved === true){
-    void registerOnlineUser({
-      loginId: form.loginId,
-      password: form.password,
-      displayName: form.displayName,
-      recoveryEmail: form.recoveryEmail,
-      privacyAgreedAt: state.registerPolicyAgreedAt || new Date().toISOString(),
-    });
-    return;
-  }
+      if(state.registerSubmitInFlight) return;
 
-  if(state.registerPolicyRejected === true){
-    setRegisterStatus('정보 동의가 안되었습니다. 개인정보 정책에 동의해야 가입할 수 있습니다.');
-    setAuthStatus('정보 동의가 안되었습니다. 개인정보 정책에 동의해야 가입할 수 있습니다.');
-    showBanner('정보 동의가 안되었습니다.', 1.6);
-    return;
-  }
+      if(state.registerPolicyApproved === true){
+        void registerOnlineUser({
+          loginId: form.loginId,
+          password: form.password,
+          displayName: form.displayName,
+          recoveryEmail: form.recoveryEmail,
+          privacyAgreedAt: state.registerPolicyAgreedAt || new Date().toISOString(),
+        });
+        return;
+      }
 
-  openPolicyModal();
-  setRegisterStatus('개인정보 정책을 확인하고 거절 또는 동의를 선택하세요.', false, true);
-  setAuthStatus('개인정보 정책을 확인하고 거절 또는 동의를 선택하세요.');
-  showBanner('개인정보 정책 확인', 1.2);
+      if(state.registerPolicyRejected === true){
+        setRegisterStatus('정보 동의가 안되었습니다. 개인정보 정책에 동의해야 가입할 수 있습니다.');
+        setAuthStatus('정보 동의가 안되었습니다. 개인정보 정책에 동의해야 가입할 수 있습니다.');
+        showBanner('정보 동의가 안되었습니다.', 1.6);
+        return;
+      }
+
+      openPolicyModal();
+      setRegisterStatus('개인정보 정책을 확인하고 거절 또는 동의를 선택하세요.', false, true);
+      setAuthStatus('개인정보 정책을 확인하고 거절 또는 동의를 선택하세요.');
+      showBanner('개인정보 정책 확인', 1.2);
+    } finally {
+      if(!state.registerSubmitInFlight) authRegisterBtn.disabled = false;
+    }
+  })();
 }
 
 function approvePolicyAndRegister(){
@@ -2683,7 +2790,7 @@ function persistUserStats(){
 function beginNewGame(){
   if(!state.currentUser){
     openMenu('auth');
-    setAuthStatus('로그인 후 시작 화면과 게임이 열립니다.');
+    setAuthStatus('로그인 후 전장 화면과 게임이 바로 열립니다.');
     return;
   }
   persistUserStats();
@@ -2705,24 +2812,14 @@ async function hydrateOnlineSession(){
   return true;
 }
 
-async function hydrateSession(options={}){
-  const forceAuth = !!options.forceAuth;
+async function hydrateSession(){
   const ok = await hydrateOnlineSession();
-  const autoLoginEnabled = readAutoLoginPreference();
-  if(ok && autoLoginEnabled && !forceAuth){
-    state.authFlowUnlocked = true;
-    updateAuthGate();
-    updateUserBadge();
-    openMenu('home');
-    setAuthStatus('자동로그인으로 시작 화면을 열었습니다.', true);
-    return;
-  }
   state.authFlowUnlocked = false;
   updateAuthGate();
   updateUserBadge();
   syncSavedLoginInputs(true);
   openMenu('auth');
-  if(ok) setAuthStatus('로그인 버튼을 눌러 시작 화면을 열 수 있습니다.', true);
+  if(ok) setAuthStatus('기존 세션이 있어도 시작 시 로그인 화면부터 표시됩니다. 로그인 버튼을 눌러 진행하세요.', true);
 }
 
 async function saveSupabaseSettingsFromInputs(){
@@ -2795,6 +2892,14 @@ function buildDeck(){
         state.selectedTurretId = null;
         updateDeckSelection();
       });
+      if(state.mode === 'install'){
+        card.addEventListener('pointerdown', ev => queueInstallDragFromCard(ev, item.key, null));
+        card.addEventListener('touchstart', ev => {
+          const touch = ev.changedTouches && ev.changedTouches[0];
+          if(!touch) return;
+          queueInstallDragFromCard(pseudoPointerEventFromTouch(touch, card), item.key, touch.identifier);
+        }, { passive:false });
+      }
       pageEl.appendChild(card);
       if(state.mode === 'install') drawPreview(card.querySelector('canvas'), item);
       else drawPassivePreview(card.querySelector('canvas'), item, owned);
@@ -2828,9 +2933,19 @@ function syncPageUI(){
 function drawPreview(cv, item){
   const c = cv.getContext('2d');
   c.clearRect(0,0,cv.width,cv.height);
-  c.fillStyle = '#122030'; c.fillRect(0,0,cv.width,cv.height);
-  c.fillStyle = 'rgba(255,255,255,.03)';
-  for(let x=0;x<cv.width;x+=20){ c.fillRect(x, 0, 1, cv.height); }
+  const bg = c.createLinearGradient(0,0,cv.width,cv.height);
+  bg.addColorStop(0, '#0f1a28');
+  bg.addColorStop(0.55, '#132033');
+  bg.addColorStop(1, '#0c1522');
+  c.fillStyle = bg;
+  c.fillRect(0,0,cv.width,cv.height);
+  const glow = c.createRadialGradient(cv.width*0.5, cv.height*0.45, 6, cv.width*0.5, cv.height*0.45, cv.width*0.45);
+  glow.addColorStop(0, 'rgba(150,210,255,.20)');
+  glow.addColorStop(1, 'rgba(150,210,255,0)');
+  c.fillStyle = glow;
+  c.fillRect(0,0,cv.width,cv.height);
+  c.fillStyle = 'rgba(255,255,255,.04)';
+  for(let x=0;x<cv.width;x+=16){ c.fillRect(x, 0, 1, cv.height); }
   drawInstallModel(c, item, cv.width/2, cv.height/2+4, cv.width*0.66, cv.height*0.68, 1, true);
 }
 
@@ -2916,7 +3031,6 @@ function resize(){
     state.supportDirty = true;
     syncPageUI();
     fitDeckMetaText();
-    refreshInstallCancelButton();
   }
 
   function gridCenter(col,row){
@@ -2934,6 +3048,151 @@ function resize(){
   function pointerPos(ev){
     const r = canvas.getBoundingClientRect();
     return {x:ev.clientX - r.left, y:ev.clientY - r.top};
+  }
+
+  function clearInstallDragState(){
+    state.dragInstallActive = false;
+    state.dragInstallTile = null;
+    state.dragInstallPointerId = null;
+    state.dragInstallStartX = 0;
+    state.dragInstallStartY = 0;
+    state.dragInstallMoved = false;
+    state.dragInstallCardKey = '';
+    state.dragInstallTouchId = null;
+    if(installDragBadge) installDragBadge.classList.remove('open');
+    if(sliderWrap) sliderWrap.classList.remove('dragLock');
+  }
+
+  function clearPendingInstallDrag(){
+    if(state.dragInstallHoldTimer){
+      clearTimeout(state.dragInstallHoldTimer);
+      state.dragInstallHoldTimer = 0;
+    }
+    state.dragInstallHoldKey = '';
+    state.dragInstallHoldPointerId = null;
+    state.dragInstallHoldTouchId = null;
+    state.dragInstallHoldX = 0;
+    state.dragInstallHoldY = 0;
+    state.dragInstallHoldTarget = null;
+  }
+
+  function updateInstallDragBadge(ev){
+    if(!installDragBadge) return;
+    if(!state.dragInstallActive){
+      installDragBadge.classList.remove('open');
+      return;
+    }
+    installDragBadge.style.left = Math.round(ev.clientX) + 'px';
+    installDragBadge.style.top = Math.round(ev.clientY - 16) + 'px';
+    const item = getInstall(state.dragInstallCardKey || state.selectedInstall);
+    installDragBadge.textContent = `${item.name} 설치`;
+    installDragBadge.classList.add('open');
+  }
+
+  function pseudoPointerEventFromTouch(touch, currentTarget=null){
+    return {
+      clientX: touch?.clientX || 0,
+      clientY: touch?.clientY || 0,
+      pointerId: null,
+      button: 0,
+      currentTarget,
+      preventDefault(){},
+      stopPropagation(){},
+    };
+  }
+
+  function findTouchByIdentifier(list, identifier){
+    if(!list || identifier == null) return null;
+    for(const t of list){
+      if(t.identifier === identifier) return t;
+    }
+    return null;
+  }
+
+  function beginInstallDragFromCard(ev, key='', touchId=null){
+    if(state.mode !== 'install') return;
+    if(ev.button !== undefined && ev.button !== 0) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const picked = getInstall(key || state.selectedInstall);
+    if(!picked) return;
+    state.selectedInstall = picked.key;
+    updateDeckSelection();
+    state.dragInstallActive = true;
+    state.dragInstallPointerId = Number.isFinite(ev.pointerId) ? ev.pointerId : null;
+    state.dragInstallTile = tileAt(pointerPos(ev).x, pointerPos(ev).y);
+    state.dragInstallStartX = ev.clientX;
+    state.dragInstallStartY = ev.clientY;
+    state.dragInstallMoved = false;
+    state.dragInstallCardKey = picked.key;
+    state.dragInstallTouchId = touchId;
+    if(sliderWrap) sliderWrap.classList.add('dragLock');
+    const target = ev.currentTarget;
+    if(target && typeof target.setPointerCapture === 'function' && Number.isFinite(ev.pointerId)){
+      try{ target.setPointerCapture(ev.pointerId); } catch(err){}
+    }
+    updateInstallDragBadge(ev);
+  }
+
+  function queueInstallDragFromCard(ev, key='', touchId=null){
+    if(state.mode !== 'install') return;
+    if(ev.button !== undefined && ev.button !== 0) return;
+    clearPendingInstallDrag();
+    state.dragInstallHoldKey = key || state.selectedInstall;
+    state.dragInstallHoldPointerId = Number.isFinite(ev.pointerId) ? ev.pointerId : null;
+    state.dragInstallHoldTouchId = touchId;
+    state.dragInstallHoldX = ev.clientX || 0;
+    state.dragInstallHoldY = ev.clientY || 0;
+    state.dragInstallHoldTarget = ev.currentTarget || null;
+    state.dragInstallHoldTimer = setTimeout(() => {
+      state.dragInstallHoldTimer = 0;
+      beginInstallDragFromCard({
+        clientX: state.dragInstallHoldX,
+        clientY: state.dragInstallHoldY,
+        pointerId: state.dragInstallHoldPointerId,
+        button: 0,
+        currentTarget: state.dragInstallHoldTarget,
+        preventDefault(){},
+        stopPropagation(){},
+      }, state.dragInstallHoldKey, state.dragInstallHoldTouchId);
+      clearPendingInstallDrag();
+    }, 100);
+  }
+
+  function updateInstallDrag(ev){
+    if(!state.dragInstallActive) return;
+    if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
+    const p = pointerPos(ev);
+    const movedDist = Math.hypot(ev.clientX - state.dragInstallStartX, ev.clientY - state.dragInstallStartY);
+    if(movedDist >= 8) state.dragInstallMoved = true;
+    state.dragInstallTile = tileAt(p.x, p.y);
+    updateInstallDragBadge(ev);
+  }
+
+  function endInstallDrag(ev){
+    if(!state.dragInstallActive) return;
+    if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
+    ev.preventDefault();
+    const p = pointerPos(ev);
+    const tile = tileAt(p.x, p.y) || state.dragInstallTile;
+    const moved = state.dragInstallMoved;
+    const draggedKey = state.dragInstallCardKey || state.selectedInstall;
+    if(Number.isFinite(ev.pointerId) && canvas.releasePointerCapture){
+      try{ canvas.releasePointerCapture(ev.pointerId); } catch(err){}
+    }
+    clearInstallDragState();
+    if(!tile) return;
+    if(!moved){
+      const occupied = state.turrets.find(t => t.col === tile.col && t.row === tile.row);
+      if(occupied){
+        selectTurret(occupied.id);
+        return;
+      }
+      if(draggedKey) showBanner('하단 카드에서 전장으로 드래그해 설치하세요.', 1.0);
+      return;
+    }
+    if(draggedKey) state.selectedInstall = draggedKey;
+    place(tile.col, tile.row);
   }
 
   function selectTurret(id){ state.selectedTurretId = id; refreshActionBar(); }
@@ -2980,57 +3239,10 @@ function refreshActionBar(){
 
   function canPlaceAt(col,row){ return !state.turrets.some(t => t.col===col && t.row===row); }
 
-  function hideInstallCancel(){
-    state.pendingPlaceCancelId = null;
-    if(!installCancelBtn) return;
-    installCancelBtn.classList.remove('open');
-  }
-
-  function refreshInstallCancelButton(){
-    if(!installCancelBtn) return;
-    if(!state.pendingPlaceCancelId){
-      installCancelBtn.classList.remove('open');
-      return;
-    }
-    const turret = state.turrets.find(t => t.id === state.pendingPlaceCancelId);
-    if(!turret){
-      hideInstallCancel();
-      return;
-    }
-    const yOffset = Math.max(22, state.field.tileH * 0.40);
-    installCancelBtn.style.left = Math.round(turret.x) + 'px';
-    installCancelBtn.style.top = Math.round(turret.y - yOffset) + 'px';
-    installCancelBtn.classList.add('open');
-  }
-
-  function showInstallCancelForTurret(turret){
-    if(!turret){ hideInstallCancel(); return; }
-    state.pendingPlaceCancelId = turret.id;
-    refreshInstallCancelButton();
-  }
-
-  function cancelPendingPlacement(){
-    const turret = state.turrets.find(t => t.id === state.pendingPlaceCancelId);
-    if(!turret){
-      hideInstallCancel();
-      return;
-    }
-    state.gold += turret.base.cost;
-    state.turrets = state.turrets.filter(t => t.id !== turret.id);
-    state.effects = state.effects.filter((eff) => !(eff.type === 'place' && Math.hypot((eff.x || 0) - turret.x, (eff.y || 0) - turret.y) < 20));
-    if(state.selectedTurretId === turret.id) state.selectedTurretId = null;
-    state.supportDirty = true;
-    hideInstallCancel();
-    updateHud();
-    refreshActionBar();
-    buildDeck();
-    showBanner('설치 취소', 1.0);
-  }
-
 function place(col,row){
   if(state.mode !== 'install') return;
   const occupied = state.turrets.find(t => t.col===col && t.row===row);
-  if(occupied){ hideInstallCancel(); selectTurret(occupied.id); return; }
+  if(occupied){ selectTurret(occupied.id); return; }
   const item = getInstall(state.selectedInstall);
   if(!installUnlocked(item)){ showBanner(`WAVE ${installReqWave(item.key)} 해금`, 1.1); return; }
   if(state.turrets.length >= installSlotLimit()){ showBanner(`설치 슬롯 한도 ${installSlotLimit()}기`, 1.1); return; }
@@ -3041,7 +3253,6 @@ function place(col,row){
   state.turrets.push(placedTurret);
   state.supportDirty = true;
   state.selectedTurretId = null;
-  showInstallCancelForTurret(placedTurret);
   if(hasPassive('blood_furnace') && state.energy > 6){
     state.energy -= 3;
     state.energyLossBank += 3;
@@ -3069,7 +3280,6 @@ function upgradeSelected(){
   if(state.mode === 'passive'){ buySelectedPassive(); return; }
   const t = getSelectedTurret(); if(!t) return;
   const cost = getUpgradeCost(t); if(!cost || state.gold < cost) return;
-  hideInstallCancel();
   const nextLevel = t.level + 1;
   const perkText = upgradeDeltaText(t.base, nextLevel);
   state.gold -= cost;
@@ -3086,7 +3296,6 @@ function upgradeSelected(){
 function sellSelected(){
   if(state.mode === 'passive') return;
   const t = getSelectedTurret(); if(!t) return;
-  hideInstallCancel();
   state.gold += Math.round(turretTotalSpent(t) * 0.65);
   if(hasPassive('salvage_relay')) healEnergy(2);
   state.turrets = state.turrets.filter(v => v.id !== t.id);
@@ -3105,13 +3314,11 @@ function resetGame(options={}){
   state.turrets = []; state.enemies = []; state.bullets = []; state.effects = []; state.pools = []; state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.0; state.last = 0; state.bannerUntil = 0;
   state.passives = {}; state.emergencyUsed = false; state.energyLossBank = 0; state.damageBuffs = []; state.animClock = 0;
   state.supportCache = new Map(); state.supportDirty = true;
-  hideInstallCancel();
   banner.style.display='none'; banner.style.opacity='0'; state.paused = false; syncStartToggleButton(); updateHud(); buildDeck(); updateSelectedName(); refreshActionBar(); scrollToPage(0);
 }
 
 
   function startGame(){
-    hideInstallCancel();
     if(state.menuOpen){
       if(!state.currentUser){
         openMenu('auth');
@@ -3852,9 +4059,50 @@ function onEnemyKilled(e){
 
   function shapeCtx(c, x,y,w,h,color){ c.save(); c.translate(x,y); c.fillStyle = color; c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = Math.max(1, Math.min(w,h)*0.05); }
   function endShape(c){ c.restore(); }
-  function barrel(c,x,y,w,h){ c.fillRect(x,y,w,h); }
-  function dome(c,x,y,r){ c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill(); }
-  function poly(c,pts){ c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.closePath(); c.fill(); }
+  function barrel(c,x,y,w,h){
+    const grad = c.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, 'rgba(255,255,255,.42)');
+    grad.addColorStop(0.22, 'rgba(255,255,255,.16)');
+    grad.addColorStop(1, 'rgba(0,0,0,.32)');
+    c.save();
+    c.fillRect(x,y,w,h);
+    c.fillStyle = grad;
+    c.fillRect(x,y,w,h);
+    c.strokeStyle = 'rgba(220,238,255,.30)';
+    c.lineWidth = Math.max(1, Math.min(w,h) * 0.12);
+    c.strokeRect(x + 0.5, y + 0.5, Math.max(0,w - 1), Math.max(0,h - 1));
+    c.restore();
+  }
+  function dome(c,x,y,r){
+    const rg = c.createRadialGradient(x - r*0.24, y - r*0.34, r*0.20, x, y, r);
+    rg.addColorStop(0, 'rgba(255,255,255,.46)');
+    rg.addColorStop(0.28, 'rgba(255,255,255,.16)');
+    rg.addColorStop(1, 'rgba(0,0,0,.26)');
+    c.save();
+    c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill();
+    c.fillStyle = rg;
+    c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill();
+    c.strokeStyle = 'rgba(210,235,255,.36)';
+    c.lineWidth = Math.max(1, r * 0.22);
+    c.beginPath(); c.arc(x,y,r*0.98,0,Math.PI*2); c.stroke();
+    c.restore();
+  }
+  function poly(c,pts){
+    c.save();
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.closePath(); c.fill();
+    const minY = Math.min(...pts.map(p => p[1]));
+    const maxY = Math.max(...pts.map(p => p[1]));
+    const grad = c.createLinearGradient(0, minY, 0, maxY);
+    grad.addColorStop(0, 'rgba(255,255,255,.36)');
+    grad.addColorStop(0.35, 'rgba(255,255,255,.12)');
+    grad.addColorStop(1, 'rgba(0,0,0,.30)');
+    c.fillStyle = grad;
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(215,238,255,.26)';
+    c.lineWidth = 1.4;
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]); c.closePath(); c.stroke();
+    c.restore();
+  }
 
   function drawInstallModel(c, item, cx, cy, w, h, level=1, isCard=false){
     const steel = '#d9e4ef';
@@ -3864,6 +4112,9 @@ function onEnemyKilled(e){
 
     shapeCtx(c, cx, cy, w, h, accent);
     const W = w, H = h;
+    c.shadowColor = 'rgba(0,0,0,.34)';
+    c.shadowBlur = isCard ? 6 : 9;
+    c.shadowOffsetY = isCard ? 2 : 3;
 
     const basePlate = (scale=1) => {
       c.fillStyle = '#253242';
@@ -4221,6 +4472,20 @@ function onEnemyKilled(e){
       c.fillText('L'+level, -W*0.30, -H*0.28);
     }
 
+    c.shadowBlur = 0;
+    c.shadowOffsetY = 0;
+    const sheen = c.createLinearGradient(-W*0.45, -H*0.45, W*0.45, H*0.45);
+    sheen.addColorStop(0, 'rgba(255,255,255,.24)');
+    sheen.addColorStop(0.35, 'rgba(255,255,255,.08)');
+    sheen.addColorStop(1, 'rgba(0,0,0,.14)');
+    c.fillStyle = sheen;
+    c.globalCompositeOperation = 'soft-light';
+    c.fillRect(-W*0.42, -H*0.34, W*0.84, H*0.68);
+    c.globalCompositeOperation = 'source-over';
+    c.strokeStyle = 'rgba(210,235,255,.24)';
+    c.lineWidth = Math.max(1, Math.min(W,H) * 0.028);
+    c.strokeRect(-W*0.36, -H*0.22, W*0.72, H*0.46);
+
     endShape(c);
   }
 
@@ -4228,6 +4493,13 @@ function onEnemyKilled(e){
     const f = state.field;
     for(const t of state.turrets){
       const selected = t.id === state.selectedTurretId; const tw = f.tileW * 0.62; const th = f.tileH * 0.62;
+      const floorGlow = ctx.createRadialGradient(t.x, t.y + th*0.24, 4, t.x, t.y + th*0.24, tw*0.68);
+      floorGlow.addColorStop(0, 'rgba(120,190,255,.24)');
+      floorGlow.addColorStop(1, 'rgba(120,190,255,0)');
+      ctx.fillStyle = floorGlow;
+      ctx.beginPath();
+      ctx.ellipse(t.x, t.y + th*0.26, tw*0.55, th*0.22, 0, 0, Math.PI*2);
+      ctx.fill();
       if(selected){ ctx.strokeStyle = 'rgba(114,179,255,0.9)'; ctx.lineWidth = 2; ctx.strokeRect(t.x - tw/2 - 5, t.y - th/2 - 5, tw + 10, th + 10); }
       drawInstallModel(ctx, t.base, t.x, t.y, tw, th, t.level, false);
       if(t.family === 'wall' || t.family === 'bunker'){
@@ -4648,12 +4920,122 @@ function onEnemyKilled(e){
     }
   }
 
-  function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawField(); drawPools(); drawTurrets(); drawEnemies(); drawBullets(); drawEffects(); }
+  function drawInstallDragPreview(){
+    if(!state.dragInstallActive || !state.dragInstallMoved || !state.dragInstallTile || state.mode !== 'install') return;
+    const { col, row } = state.dragInstallTile;
+    const f = state.field;
+    const x = f.left + col * f.tileW + 2;
+    const y = f.top + row * f.tileH + 2;
+    const w = f.tileW - 4;
+    const h = f.tileH - 4;
+    const item = getInstall(state.selectedInstall);
+    const blocked = !canPlaceAt(col, row) || state.gold < item.cost || !installUnlocked(item) || installCapReached(item) || state.turrets.length >= installSlotLimit();
+    ctx.save();
+    ctx.fillStyle = blocked ? 'rgba(255,110,110,.22)' : 'rgba(75,208,138,.24)';
+    ctx.strokeStyle = blocked ? 'rgba(255,110,110,.95)' : 'rgba(129,255,190,.95)';
+    ctx.lineWidth = 2.2;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x, y, w, h);
+    ctx.restore();
+  }
 
-  function onPointer(ev){ if(state.menuOpen) return; ev.preventDefault(); const p = pointerPos(ev); const tile = tileAt(p.x,p.y); if(!tile) return; place(tile.col,tile.row); }
+  function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawField(); drawInstallDragPreview(); drawPools(); drawTurrets(); drawEnemies(); drawBullets(); drawEffects(); }
+
+  function onPointerDown(ev){
+    if(state.menuOpen) return;
+    const p = pointerPos(ev);
+    const tile = tileAt(p.x, p.y);
+    if(!tile) return;
+    const occupied = state.turrets.find(t => t.col === tile.col && t.row === tile.row);
+    if(occupied){
+      selectTurret(occupied.id);
+      return;
+    }
+    if(state.mode === 'install'){
+      showBanner('하단 카드에서 전장으로 드래그해 설치하세요.', 0.9);
+    }
+  }
+  function onPointerMove(ev){
+    if(state.dragInstallHoldTimer && Number.isFinite(state.dragInstallHoldPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallHoldPointerId === ev.pointerId){
+      const moved = Math.hypot((ev.clientX || 0) - state.dragInstallHoldX, (ev.clientY || 0) - state.dragInstallHoldY);
+      if(moved > 10) clearPendingInstallDrag();
+    }
+    updateInstallDrag(ev);
+  }
+  function onPointerUp(ev){
+    if(state.dragInstallHoldTimer && Number.isFinite(state.dragInstallHoldPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallHoldPointerId === ev.pointerId){
+      clearPendingInstallDrag();
+      return;
+    }
+    endInstallDrag(ev);
+  }
+  function onTouchMove(ev){
+    if(state.dragInstallHoldTimer && state.dragInstallHoldTouchId != null){
+      const holdTouch = findTouchByIdentifier(ev.touches, state.dragInstallHoldTouchId) || findTouchByIdentifier(ev.changedTouches, state.dragInstallHoldTouchId);
+      if(holdTouch){
+        const moved = Math.hypot((holdTouch.clientX || 0) - state.dragInstallHoldX, (holdTouch.clientY || 0) - state.dragInstallHoldY);
+        if(moved > 10) clearPendingInstallDrag();
+      }
+    }
+    if(!state.dragInstallActive || state.dragInstallTouchId == null) return;
+    const touch = findTouchByIdentifier(ev.touches, state.dragInstallTouchId) || findTouchByIdentifier(ev.changedTouches, state.dragInstallTouchId);
+    if(!touch) return;
+    ev.preventDefault();
+    updateInstallDrag(pseudoPointerEventFromTouch(touch));
+  }
+  function onTouchEnd(ev){
+    if(state.dragInstallHoldTimer && state.dragInstallHoldTouchId != null){
+      const holdTouch = findTouchByIdentifier(ev.changedTouches, state.dragInstallHoldTouchId);
+      if(holdTouch){
+        clearPendingInstallDrag();
+        return;
+      }
+    }
+    if(!state.dragInstallActive || state.dragInstallTouchId == null) return;
+    const touch = findTouchByIdentifier(ev.changedTouches, state.dragInstallTouchId);
+    if(!touch) return;
+    ev.preventDefault();
+    endInstallDrag(pseudoPointerEventFromTouch(touch));
+  }
+  function onTouchCancel(ev){
+    if(state.dragInstallHoldTimer && state.dragInstallHoldTouchId != null){
+      const holdTouch = findTouchByIdentifier(ev.changedTouches, state.dragInstallHoldTouchId);
+      if(holdTouch){
+        clearPendingInstallDrag();
+        return;
+      }
+    }
+    if(!state.dragInstallActive || state.dragInstallTouchId == null) return;
+    const touch = findTouchByIdentifier(ev.changedTouches, state.dragInstallTouchId);
+    if(!touch) return;
+    ev.preventDefault();
+    clearInstallDragState();
+  }
+  function onPointerCancel(ev){
+    if(state.dragInstallHoldTimer && Number.isFinite(state.dragInstallHoldPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallHoldPointerId === ev.pointerId){
+      clearPendingInstallDrag();
+      return;
+    }
+    if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
+    if(Number.isFinite(ev.pointerId) && canvas.releasePointerCapture){
+      try{ canvas.releasePointerCapture(ev.pointerId); } catch(err){}
+    }
+    clearInstallDragState();
+  }
+  function onPointerLeave(ev){
+    if(!state.dragInstallActive) return;
+    updateInstallDrag(ev);
+  }
   function loop(ts){ const now = ts / 1000; const dt = Math.min(0.033, state.last ? now - state.last : 0.016); state.last = now; update(dt); draw(); requestAnimationFrame(loop); }
 
-  canvas.addEventListener('pointerdown', onPointer);
+  canvas.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove, { passive:true });
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerCancel);
+  window.addEventListener('touchmove', onTouchMove, { passive:false });
+  window.addEventListener('touchend', onTouchEnd, { passive:false });
+  window.addEventListener('touchcancel', onTouchCancel, { passive:false });
+  canvas.addEventListener('pointerleave', onPointerLeave);
   for(const btn of document.querySelectorAll('button')){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
   }
@@ -4674,13 +5056,6 @@ function onEnemyKilled(e){
   });
   pauseBtn.addEventListener('click', () => {});
   resetBtn.addEventListener('click', resetGame);
-  if(installCancelBtn){
-    installCancelBtn.addEventListener('click', ev => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      cancelPendingPlacement();
-    });
-  }
   upgradeBtn.addEventListener('click', upgradeSelected);
   sellBtn.addEventListener('click', sellSelected);
   modeInstallBtn.addEventListener('click', () => changeMode('install'));
@@ -4764,8 +5139,8 @@ function onEnemyKilled(e){
     renderLeaderboard([]);
     renderPresence([], 0);
     renderChatMessages([]);
-    const updated = await playUpdateOverlay(false);
-    await hydrateSession({ forceAuth: updated });
+    await playUpdateOverlay(false);
+    await hydrateSession();
     requestAnimationFrame(loop);
   }
 
