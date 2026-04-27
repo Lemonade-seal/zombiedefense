@@ -249,6 +249,8 @@
   const SUPABASE_PRESENCE_TABLE = 'game_presence';
   const SUPABASE_CHAT_TABLE = 'game_chat_messages';
 
+  removeLegacyPageNavButtons();
+
   injectRuntimeUi();
 
   const userBadge = document.getElementById('userBadge');
@@ -1586,6 +1588,11 @@ function syncAutoLoginCheckbox(){
 
 function delay(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function removeLegacyPageNavButtons(){
+  const legacyNodes = document.querySelectorAll('#pagePrevBtn, #pageNextBtn, .pageNavBtns');
+  legacyNodes.forEach(node => node.remove());
 }
 
 async function playUpdateOverlay(force=false){
@@ -3154,7 +3161,7 @@ function resize(){
         stopPropagation(){},
       }, state.dragInstallHoldKey, state.dragInstallHoldTouchId);
       clearPendingInstallDrag();
-    }, 500);
+    }, 100);
   }
 
   function updateInstallDrag(ev){
