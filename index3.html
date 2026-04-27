@@ -1806,6 +1806,25 @@ function currentUserLabel(){
   return state.currentUser.name || 'PLAYER';
 }
 
+function activateGuestSession(){
+  if(state.currentUser) return;
+  state.currentUser = {
+    key: 'guest-local',
+    userId: 'guest-local',
+    loginId: 'guest',
+    provider: 'guest',
+    authEmail: '',
+    recoveryEmail: '',
+    privacyAgreedAt: '',
+    name: 'GUEST',
+  };
+  state.profileCache = defaultProfileForUser(state.currentUser);
+  state.authFlowUnlocked = true;
+  updateAuthGate();
+  updateUserBadge();
+  setAuthStatus('게스트 모드로 전장에 입장했습니다.', true);
+}
+
 function renderPatchNotes(){
   if(!patchNotesSummary) return;
   const merged = [...REQUIRED_PATCH_NOTES, ...(Array.isArray(PATCH_NOTES) ? PATCH_NOTES : [])];
@@ -2789,11 +2808,7 @@ function persistUserStats(){
 }
 
 function beginNewGame(){
-  if(!state.currentUser){
-    openMenu('auth');
-    setAuthStatus('로그인 후 전장 화면과 게임이 바로 열립니다.');
-    return;
-  }
+  if(!state.currentUser) activateGuestSession();
   persistUserStats();
   resetGame({skipProfileSave:true});
   closeMenu();
@@ -5043,11 +5058,7 @@ function onEnemyKilled(e){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
   }
   startBtn.addEventListener('click', () => {
-    if(!state.currentUser){
-      openMenu('auth');
-      setAuthStatus('로그인 후 게임을 시작할 수 있습니다.');
-      return;
-    }
+    if(!state.currentUser) activateGuestSession();
     closeMenu();
     if(state.started && !state.over){
       state.paused = !state.paused;
