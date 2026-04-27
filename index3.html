@@ -60,6 +60,8 @@
   .caption{display:grid;grid-template-columns:1fr auto;align-items:center;color:var(--muted);font-size:11px;font-weight:700;padding:0 2px;gap:8px;min-height:34px}
   .captionRight{display:flex;gap:8px;align-items:center}
   .dots{display:flex;gap:5px;align-items:center}
+  .pageNavBtns{display:flex;gap:6px;align-items:center}
+  .pageNavBtn{min-height:28px;padding:0 10px;font-size:11px;border-radius:9px}
   .seg{display:flex;gap:6px;align-items:center}
   .seg .tab{min-height:30px;padding:0 10px;font-size:11px;border-radius:10px}
   .dot{width:8px;height:8px;border-radius:999px;background:#334157;border:1px solid #495872}
@@ -176,6 +178,10 @@
           <button id="modePassiveBtn" class="small tab">패시브</button>
         </div>
         <div class="dots" id="pageDots"></div>
+        <div class="pageNavBtns">
+          <button id="pagePrevBtn" class="pageNavBtn">◀</button>
+          <button id="pageNextBtn" class="pageNavBtn">▶</button>
+        </div>
       </div>
     </div>
     <div class="sliderWrap" id="sliderWrap"><div class="track" id="deckTrack"></div></div>
@@ -203,7 +209,7 @@
   const deckTrack = document.getElementById('deckTrack');
   const sliderWrap = document.getElementById('sliderWrap');
   const pageDots = document.getElementById('pageDots');
-  const selectedName = document.getElementById('selectedName');
+ㄴ  const selectedName = document.getElementById('selectedName');
   const pageLabel = document.getElementById('pageLabel');
   const actionInfo = document.getElementById('actionInfo');
   const startBtn = document.getElementById('startBtn');
@@ -213,6 +219,8 @@
   const sellBtn = document.getElementById('sellBtn');
   const modeInstallBtn = document.getElementById('modeInstallBtn');
   const modePassiveBtn = document.getElementById('modePassiveBtn');
+  const pagePrevBtn = document.getElementById('pagePrevBtn');
+  const pageNextBtn = document.getElementById('pageNextBtn');
   const app = document.getElementById('app');
   const controls = document.querySelector('.controls');
 
@@ -1802,9 +1810,29 @@ function currentUserLabel(){
   return state.currentUser.name || 'PLAYER';
 }
 
+function activateGuestSession(){
+  if(state.currentUser) return;
+  state.currentUser = {
+    key: 'guest-local',
+    userId: 'guest-local',
+    loginId: 'guest',
+    provider: 'guest',
+    authEmail: '',
+    recoveryEmail: '',
+    privacyAgreedAt: '',
+    name: 'GUEST',
+  };
+  state.profileCache = defaultProfileForUser(state.currentUser);
+  state.authFlowUnlocked = true;
+  updateAuthGate();
+  updateUserBadge();
+  setAuthStatus('게스트 모드로 전장에 입장했습니다.', true);
+}
+
 function renderPatchNotes(){
   if(!patchNotesSummary) return;
-  const items = Array.isArray(PATCH_NOTES) ? PATCH_NOTES.filter(Boolean) : [];
+  const merged = [...REQUIRED_PATCH_NOTES, ...(Array.isArray(PATCH_NOTES) ? PATCH_NOTES : [])];
+  const items = [...new Set(merged.map(item => String(item || '').trim()).filter(Boolean))];
   const listHtml = items.length
     ? `<ul class="patchNotesList">${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
     : '<div>표시할 패치노트가 없습니다.</div>';
@@ -2924,6 +2952,8 @@ function syncPageUI(){
   const end = Math.min(list.length, start + PAGE_SIZE);
   pageLabel.textContent = `${state.mode === 'install' ? 'INSTALL' : 'PASSIVE'} ${start+1}-${end} / ${list.length}`;
   [...pageDots.children].forEach((d, i) => d.classList.toggle('active', i === state.page));
+  if(pagePrevBtn) pagePrevBtn.disabled = state.page <= 0;
+  if(pageNextBtn) pageNextBtn.disabled = state.page >= pageCount() - 1;
 }
 
 function drawPreview(cv, item){
@@ -5036,11 +5066,7 @@ function onEnemyKilled(e){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
   }
   startBtn.addEventListener('click', () => {
-    if(!state.currentUser){
-      openMenu('auth');
-      setAuthStatus('로그인 후 게임을 시작할 수 있습니다.');
-      return;
-    }
+    if(!state.currentUser) activateGuestSession();
     closeMenu();
     if(state.started && !state.over){
       state.paused = !state.paused;
@@ -5056,6 +5082,8 @@ function onEnemyKilled(e){
   sellBtn.addEventListener('click', sellSelected);
   modeInstallBtn.addEventListener('click', () => changeMode('install'));
   modePassiveBtn.addEventListener('click', () => changeMode('passive'));
+  if(pagePrevBtn) pagePrevBtn.addEventListener('click', () => scrollToPage(state.page - 1));
+  if(pageNextBtn) pageNextBtn.addEventListener('click', () => scrollToPage(state.page + 1));
   menuBtn.addEventListener('click', () => {
     if(state.menuOpen && state.authFlowUnlocked){
       closeMenu();
