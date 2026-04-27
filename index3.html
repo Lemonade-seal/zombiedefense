@@ -483,6 +483,9 @@ const state = {
   state.presencePanelOpen = false;
   state.authSubscription = null;
   state.pendingPlaceCancelId = null;
+  state.dragInstallActive = false;
+  state.dragInstallTile = null;
+  state.dragInstallPointerId = null;
 
 
 const installMap = Object.fromEntries(INSTALLS.map(i => [i.key, i]));
@@ -541,6 +544,7 @@ function energyRegenPerSec(){
   return value;
 }
 function changeMode(mode){
+  clearInstallDragState();
   state.mode = mode;
   state.page = 0;
   state.selectedTurretId = null;
@@ -1653,26 +1657,36 @@ function hasInvalidEmailStructure(value=''){
   return false;
 }
 
+function isBlockedEmailDomain(domain=''){
+  const clean = String(domain || '').trim().toLowerCase();
+  const blocked = new Set([
+    'example.com',
+    'example.net',
+    'example.org',
+    'test.com',
+    'invalid',
+    'localhost',
+  ]);
+  return blocked.has(clean);
+}
+
 async function hasReachableEmailDomain(value=''){
   const clean = normalizeRecoveryEmail(value);
   if(hasInvalidEmailStructure(clean)) return false;
   const domain = clean.split('@')[1];
   if(!domain) return false;
-  const checkTypes = ['MX', 'A'];
-  for(const type of checkTypes){
-    try{
-      const query = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`;
-      const response = await fetch(query, { method: 'GET', cache: 'no-store' });
-      if(!response.ok) continue;
-      const payload = await response.json();
-      const statusCode = Number(payload?.Status);
-      const answers = Array.isArray(payload?.Answer) ? payload.Answer : [];
-      if(statusCode === 0 && answers.length > 0) return true;
-    } catch(err){
-      // 네트워크 상황에 따라 실패할 수 있으므로 다음 타입으로 재시도
-    }
+  if(isBlockedEmailDomain(domain)) return false;
+  try{
+    const query = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`;
+    const response = await fetch(query, { method: 'GET', cache: 'no-store' });
+    if(!response.ok) return false;
+    const payload = await response.json();
+    const statusCode = Number(payload?.Status);
+    const answers = Array.isArray(payload?.Answer) ? payload.Answer : [];
+    return statusCode === 0 && answers.length > 0;
+  } catch(err){
+    return false;
   }
-  return false;
 }
 
 function isValidPassword(value=''){
@@ -2516,6 +2530,15 @@ async function registerOnlineUser(form){
   const agreedAt = form.privacyAgreedAt || state.registerPolicyAgreedAt || new Date().toISOString();
   const loginId = form.loginId;
   const authEmail = form.recoveryEmail;
+  const emailDomainReachable = await hasReachableEmailDomain(authEmail);
+  if(!emailDomainReachable){
+    setRegisterStatus('실제 사용 가능한 이메일만 회원가입할 수 있습니다.');
+    setAuthStatus('실제 사용 가능한 이메일만 회원가입할 수 있습니다.');
+    showBanner('회원가입 실패', 1.4);
+    state.registerSubmitInFlight = false;
+    authRegisterBtn.disabled = false;
+    return;
+  }
   try{
     const { data, error } = await state.supabase.auth.signUp({
       email: authEmail,
@@ -2993,6 +3016,47 @@ function resize(){
   function pointerPos(ev){
     const r = canvas.getBoundingClientRect();
     return {x:ev.clientX - r.left, y:ev.clientY - r.top};
+  }
+
+  function clearInstallDragState(){
+    state.dragInstallActive = false;
+    state.dragInstallTile = null;
+    state.dragInstallPointerId = null;
+  }
+
+  function beginInstallDrag(ev){
+    if(state.menuOpen || state.mode !== 'install') return;
+    const p = pointerPos(ev);
+    const tile = tileAt(p.x, p.y);
+    if(!tile) return;
+    ev.preventDefault();
+    state.dragInstallActive = true;
+    state.dragInstallPointerId = Number.isFinite(ev.pointerId) ? ev.pointerId : null;
+    state.dragInstallTile = tile;
+    if(canvas.setPointerCapture && Number.isFinite(ev.pointerId)){
+      try{ canvas.setPointerCapture(ev.pointerId); } catch(err){}
+    }
+  }
+
+  function updateInstallDrag(ev){
+    if(!state.dragInstallActive) return;
+    if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
+    const p = pointerPos(ev);
+    state.dragInstallTile = tileAt(p.x, p.y);
+  }
+
+  function endInstallDrag(ev){
+    if(!state.dragInstallActive) return;
+    if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
+    ev.preventDefault();
+    const p = pointerPos(ev);
+    const tile = tileAt(p.x, p.y) || state.dragInstallTile;
+    if(Number.isFinite(ev.pointerId) && canvas.releasePointerCapture){
+      try{ canvas.releasePointerCapture(ev.pointerId); } catch(err){}
+    }
+    clearInstallDragState();
+    if(!tile) return;
+    place(tile.col, tile.row);
   }
 
   function selectTurret(id){ state.selectedTurretId = id; refreshActionBar(); }
@@ -4707,12 +4771,41 @@ function onEnemyKilled(e){
     }
   }
 
-  function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawField(); drawPools(); drawTurrets(); drawEnemies(); drawBullets(); drawEffects(); }
+  function drawInstallDragPreview(){
+    if(!state.dragInstallActive || !state.dragInstallTile || state.mode !== 'install') return;
+    const { col, row } = state.dragInstallTile;
+    const f = state.field;
+    const x = f.left + col * f.tileW + 2;
+    const y = f.top + row * f.tileH + 2;
+    const w = f.tileW - 4;
+    const h = f.tileH - 4;
+    const item = getInstall(state.selectedInstall);
+    const blocked = !canPlaceAt(col, row) || state.gold < item.cost || !installUnlocked(item) || installCapReached(item) || state.turrets.length >= installSlotLimit();
+    ctx.save();
+    ctx.fillStyle = blocked ? 'rgba(255,110,110,.22)' : 'rgba(75,208,138,.24)';
+    ctx.strokeStyle = blocked ? 'rgba(255,110,110,.95)' : 'rgba(129,255,190,.95)';
+    ctx.lineWidth = 2.2;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x, y, w, h);
+    ctx.restore();
+  }
 
-  function onPointer(ev){ if(state.menuOpen) return; ev.preventDefault(); const p = pointerPos(ev); const tile = tileAt(p.x,p.y); if(!tile) return; place(tile.col,tile.row); }
+  function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawField(); drawInstallDragPreview(); drawPools(); drawTurrets(); drawEnemies(); drawBullets(); drawEffects(); }
+
+  function onPointerDown(ev){ beginInstallDrag(ev); }
+  function onPointerMove(ev){ updateInstallDrag(ev); }
+  function onPointerUp(ev){ endInstallDrag(ev); }
+  function onPointerCancel(ev){
+    if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
+    clearInstallDragState();
+  }
   function loop(ts){ const now = ts / 1000; const dt = Math.min(0.033, state.last ? now - state.last : 0.016); state.last = now; update(dt); draw(); requestAnimationFrame(loop); }
 
-  canvas.addEventListener('pointerdown', onPointer);
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerCancel);
+  canvas.addEventListener('pointerleave', onPointerCancel);
   for(const btn of document.querySelectorAll('button')){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
   }
