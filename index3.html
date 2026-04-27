@@ -225,6 +225,7 @@
     '설치 직후 기물 위에 설치 취소 버튼이 뜨도록 추가',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
     '기물 판매 후 전장에 남던 파란 원 이펙트 정리',
+    'PR 반영 점검을 위한 빌드 동기화',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -1723,6 +1724,25 @@ function currentUserLabel(){
   return state.currentUser.name || 'PLAYER';
 }
 
+function activateGuestSession(){
+  if(state.currentUser) return;
+  state.currentUser = {
+    key: 'guest-local',
+    userId: 'guest-local',
+    loginId: 'guest',
+    provider: 'guest',
+    authEmail: '',
+    recoveryEmail: '',
+    privacyAgreedAt: '',
+    name: 'GUEST',
+  };
+  state.profileCache = defaultProfileForUser(state.currentUser);
+  state.authFlowUnlocked = true;
+  updateAuthGate();
+  updateUserBadge();
+  setAuthStatus('게스트 모드로 전장에 입장했습니다.', true);
+}
+
 function renderPatchNotes(){
   if(!patchNotesSummary) return;
   const items = Array.isArray(PATCH_NOTES) ? PATCH_NOTES.filter(Boolean) : [];
@@ -2681,11 +2701,7 @@ function persistUserStats(){
 }
 
 function beginNewGame(){
-  if(!state.currentUser){
-    openMenu('auth');
-    setAuthStatus('로그인 후 시작 화면과 게임이 열립니다.');
-    return;
-  }
+  if(!state.currentUser) activateGuestSession();
   persistUserStats();
   resetGame({skipProfileSave:true});
   closeMenu();
@@ -4658,11 +4674,7 @@ function onEnemyKilled(e){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
   }
   startBtn.addEventListener('click', () => {
-    if(!state.currentUser){
-      openMenu('auth');
-      setAuthStatus('로그인 후 게임을 시작할 수 있습니다.');
-      return;
-    }
+    if(!state.currentUser) activateGuestSession();
     closeMenu();
     if(state.started && !state.over){
       state.paused = !state.paused;
