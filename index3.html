@@ -42,6 +42,8 @@
   @keyframes nickTickerLoop{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--nick-travel, 0px)))}}
   .installCancelBtn{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;min-height:28px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,182,120,.65);background:rgba(42,24,12,.92);color:#ffe8c0;font-size:11px;font-weight:900;letter-spacing:.02em;box-shadow:0 10px 26px rgba(0,0,0,.28);backdrop-filter:blur(4px);z-index:16;pointer-events:auto;white-space:nowrap}
   .installCancelBtn.open{display:inline-flex}
+  .installDragBadge{position:fixed;left:0;top:0;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;min-height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(155,255,205,.62);background:rgba(18,38,27,.92);color:#d6ffe9;font-size:11px;font-weight:900;letter-spacing:.02em;box-shadow:0 10px 28px rgba(0,0,0,.3);z-index:70;pointer-events:none;white-space:nowrap}
+  .installDragBadge.open{display:inline-flex}
   .controls{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}
   button{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;padding:0 12px;font-weight:800;font-size:13px;min-height:42px;transition:transform .08s ease, box-shadow .14s ease, filter .16s ease}
   button:active{transform:translateY(1px) scale(.992);filter:brightness(1.06)}
@@ -65,6 +67,7 @@
   .dot{width:8px;height:8px;border-radius:999px;background:#334157;border:1px solid #495872}
   .dot.active{background:#81c3ff}
   .sliderWrap{height:116px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-radius:14px}
+  .sliderWrap.dragLock{touch-action:none;overflow:hidden}
   .sliderWrap::-webkit-scrollbar{display:none}
   .track{display:flex;gap:8px;height:100%}
   .deckPage{flex:0 0 100%;height:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;scroll-snap-align:start}
@@ -260,6 +263,7 @@
   const appOnlineStatus = document.getElementById('appOnlineStatus');
   const patchNotesSummary = document.getElementById('patchNotesSummary');
   const installCancelBtn = document.getElementById('installCancelBtn');
+  const installDragBadge = document.getElementById('installDragBadge');
 
   const menuLayer = document.getElementById('menuLayer');
   const menuCloseBtn = document.getElementById('menuCloseBtn');
@@ -490,6 +494,7 @@ const state = {
   state.dragInstallStartX = 0;
   state.dragInstallStartY = 0;
   state.dragInstallMoved = false;
+  state.dragInstallCardKey = '';
 
 
 const installMap = Object.fromEntries(INSTALLS.map(i => [i.key, i]));
@@ -1127,6 +1132,12 @@ function injectRuntimeUi(){
   installCancel.className = 'installCancelBtn';
   installCancel.textContent = '설치 취소';
   fieldWrap.appendChild(installCancel);
+
+  const dragBadge = document.createElement('div');
+  dragBadge.id = 'installDragBadge';
+  dragBadge.className = 'installDragBadge';
+  dragBadge.textContent = '드래그 설치';
+  document.body.appendChild(dragBadge);
 
   const layer = document.createElement('div');
   layer.id = 'menuLayer';
@@ -2881,6 +2892,9 @@ function buildDeck(){
         state.selectedTurretId = null;
         updateDeckSelection();
       });
+      if(state.mode === 'install'){
+        card.addEventListener('pointerdown', ev => beginInstallDragFromCard(ev, item.key));
+      }
       pageEl.appendChild(card);
       if(state.mode === 'install') drawPreview(card.querySelector('canvas'), item);
       else drawPassivePreview(card.querySelector('canvas'), item, owned);
@@ -3029,32 +3043,56 @@ function resize(){
     state.dragInstallStartX = 0;
     state.dragInstallStartY = 0;
     state.dragInstallMoved = false;
+    state.dragInstallCardKey = '';
+    if(installDragBadge) installDragBadge.classList.remove('open');
+    if(sliderWrap) sliderWrap.classList.remove('dragLock');
   }
 
-  function beginInstallDrag(ev){
-    if(state.menuOpen || state.mode !== 'install') return;
-    const p = pointerPos(ev);
-    const tile = tileAt(p.x, p.y);
-    if(!tile) return;
+  function updateInstallDragBadge(ev){
+    if(!installDragBadge) return;
+    if(!state.dragInstallActive){
+      installDragBadge.classList.remove('open');
+      return;
+    }
+    installDragBadge.style.left = Math.round(ev.clientX) + 'px';
+    installDragBadge.style.top = Math.round(ev.clientY - 16) + 'px';
+    const item = getInstall(state.dragInstallCardKey || state.selectedInstall);
+    installDragBadge.textContent = `${item.name} 설치`;
+    installDragBadge.classList.add('open');
+  }
+
+  function beginInstallDragFromCard(ev, key=''){
+    if(state.mode !== 'install') return;
+    if(ev.button !== undefined && ev.button !== 0) return;
     ev.preventDefault();
+    ev.stopPropagation();
+    const picked = getInstall(key || state.selectedInstall);
+    if(!picked) return;
+    state.selectedInstall = picked.key;
+    updateDeckSelection();
     state.dragInstallActive = true;
     state.dragInstallPointerId = Number.isFinite(ev.pointerId) ? ev.pointerId : null;
-    state.dragInstallTile = tile;
-    state.dragInstallStartX = p.x;
-    state.dragInstallStartY = p.y;
+    state.dragInstallTile = tileAt(pointerPos(ev).x, pointerPos(ev).y);
+    state.dragInstallStartX = ev.clientX;
+    state.dragInstallStartY = ev.clientY;
     state.dragInstallMoved = false;
-    if(canvas.setPointerCapture && Number.isFinite(ev.pointerId)){
-      try{ canvas.setPointerCapture(ev.pointerId); } catch(err){}
+    state.dragInstallCardKey = picked.key;
+    if(sliderWrap) sliderWrap.classList.add('dragLock');
+    const target = ev.currentTarget;
+    if(target && typeof target.setPointerCapture === 'function' && Number.isFinite(ev.pointerId)){
+      try{ target.setPointerCapture(ev.pointerId); } catch(err){}
     }
+    updateInstallDragBadge(ev);
   }
 
   function updateInstallDrag(ev){
     if(!state.dragInstallActive) return;
     if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
     const p = pointerPos(ev);
-    const movedDist = Math.hypot(p.x - state.dragInstallStartX, p.y - state.dragInstallStartY);
+    const movedDist = Math.hypot(ev.clientX - state.dragInstallStartX, ev.clientY - state.dragInstallStartY);
     if(movedDist >= 8) state.dragInstallMoved = true;
     state.dragInstallTile = tileAt(p.x, p.y);
+    updateInstallDragBadge(ev);
   }
 
   function endInstallDrag(ev){
@@ -3064,6 +3102,7 @@ function resize(){
     const p = pointerPos(ev);
     const tile = tileAt(p.x, p.y) || state.dragInstallTile;
     const moved = state.dragInstallMoved;
+    const draggedKey = state.dragInstallCardKey || state.selectedInstall;
     if(Number.isFinite(ev.pointerId) && canvas.releasePointerCapture){
       try{ canvas.releasePointerCapture(ev.pointerId); } catch(err){}
     }
@@ -3076,9 +3115,10 @@ function resize(){
         selectTurret(occupied.id);
         return;
       }
-      showBanner('기물을 드래그해서 설치하세요.', 1.0);
+      if(draggedKey) showBanner('하단 카드에서 전장으로 드래그해 설치하세요.', 1.0);
       return;
     }
+    if(draggedKey) state.selectedInstall = draggedKey;
     place(tile.col, tile.row);
   }
 
@@ -4815,7 +4855,21 @@ function onEnemyKilled(e){
 
   function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawField(); drawInstallDragPreview(); drawPools(); drawTurrets(); drawEnemies(); drawBullets(); drawEffects(); }
 
-  function onPointerDown(ev){ beginInstallDrag(ev); }
+  function onPointerDown(ev){
+    if(state.menuOpen) return;
+    const p = pointerPos(ev);
+    const tile = tileAt(p.x, p.y);
+    if(!tile) return;
+    const occupied = state.turrets.find(t => t.col === tile.col && t.row === tile.row);
+    if(occupied){
+      hideInstallCancel();
+      selectTurret(occupied.id);
+      return;
+    }
+    if(state.mode === 'install'){
+      showBanner('하단 카드에서 전장으로 드래그해 설치하세요.', 0.9);
+    }
+  }
   function onPointerMove(ev){ updateInstallDrag(ev); }
   function onPointerUp(ev){ endInstallDrag(ev); }
   function onPointerCancel(ev){
@@ -4832,9 +4886,9 @@ function onEnemyKilled(e){
   function loop(ts){ const now = ts / 1000; const dt = Math.min(0.033, state.last ? now - state.last : 0.016); state.last = now; update(dt); draw(); requestAnimationFrame(loop); }
 
   canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('pointermove', onPointerMove);
-  canvas.addEventListener('pointerup', onPointerUp);
-  canvas.addEventListener('pointercancel', onPointerCancel);
+  window.addEventListener('pointermove', onPointerMove, { passive:true });
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerCancel);
   canvas.addEventListener('pointerleave', onPointerLeave);
   for(const btn of document.querySelectorAll('button')){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
