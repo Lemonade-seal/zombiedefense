@@ -40,8 +40,6 @@
   .nickTicker span{display:inline-block;white-space:nowrap;padding-right:24px}
   .nickTicker.marqueeLoop{animation-name:nickTickerLoop;animation-duration:var(--nick-duration,6s);animation-timing-function:linear;animation-iteration-count:infinite;animation-fill-mode:both}
   @keyframes nickTickerLoop{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--nick-travel, 0px)))}}
-  .installCancelBtn{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;min-height:28px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,182,120,.65);background:rgba(42,24,12,.92);color:#ffe8c0;font-size:11px;font-weight:900;letter-spacing:.02em;box-shadow:0 10px 26px rgba(0,0,0,.28);backdrop-filter:blur(4px);z-index:16;pointer-events:auto;white-space:nowrap}
-  .installCancelBtn.open{display:inline-flex}
   .installDragBadge{position:fixed;left:0;top:0;transform:translate(-50%,-50%);display:none;align-items:center;justify-content:center;min-height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(155,255,205,.62);background:rgba(18,38,27,.92);color:#d6ffe9;font-size:11px;font-weight:900;letter-spacing:.02em;box-shadow:0 10px 28px rgba(0,0,0,.3);z-index:70;pointer-events:none;white-space:nowrap}
   .installDragBadge.open{display:inline-flex}
   .controls{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}
@@ -222,13 +220,13 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-27-01';
+  const BUILD_VERSION = '2026-04-27-02';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
-    '설치 직후 기물 위에 설치 취소 버튼이 뜨도록 추가',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
     '기물 판매 후 전장에 남던 파란 원 이펙트 정리',
     '업데이트 후 실행 시 업데이트 오버레이가 다시 표시되도록 빌드 버전 갱신',
+    '설치 취소 버튼 제거 및 카드 드래그 설치 흐름 정리',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -262,7 +260,6 @@
   const chatSendBtn = document.getElementById('chatSendBtn');
   const appOnlineStatus = document.getElementById('appOnlineStatus');
   const patchNotesSummary = document.getElementById('patchNotesSummary');
-  const installCancelBtn = document.getElementById('installCancelBtn');
   const installDragBadge = document.getElementById('installDragBadge');
 
   const menuLayer = document.getElementById('menuLayer');
@@ -487,7 +484,6 @@ const state = {
   state.rankPanelOpen = false;
   state.presencePanelOpen = false;
   state.authSubscription = null;
-  state.pendingPlaceCancelId = null;
   state.dragInstallActive = false;
   state.dragInstallTile = null;
   state.dragInstallPointerId = null;
@@ -495,6 +491,7 @@ const state = {
   state.dragInstallStartY = 0;
   state.dragInstallMoved = false;
   state.dragInstallCardKey = '';
+  state.dragInstallTouchId = null;
 
 
 const installMap = Object.fromEntries(INSTALLS.map(i => [i.key, i]));
@@ -1126,12 +1123,11 @@ function injectRuntimeUi(){
   `;
   fieldWrap.appendChild(panels);
 
-  const installCancel = document.createElement('button');
-  installCancel.id = 'installCancelBtn';
-  installCancel.type = 'button';
-  installCancel.className = 'installCancelBtn';
-  installCancel.textContent = '설치 취소';
-  fieldWrap.appendChild(installCancel);
+  const dragBadge = document.createElement('div');
+  dragBadge.id = 'installDragBadge';
+  dragBadge.className = 'installDragBadge';
+  dragBadge.textContent = '드래그 설치';
+  document.body.appendChild(dragBadge);
 
   const dragBadge = document.createElement('div');
   dragBadge.id = 'installDragBadge';
@@ -2894,6 +2890,13 @@ function buildDeck(){
       });
       if(state.mode === 'install'){
         card.addEventListener('pointerdown', ev => beginInstallDragFromCard(ev, item.key));
+        card.addEventListener('touchstart', ev => {
+          const touch = ev.changedTouches && ev.changedTouches[0];
+          if(!touch) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          beginInstallDragFromCard(pseudoPointerEventFromTouch(touch, card), item.key, touch.identifier);
+        }, { passive:false });
       }
       pageEl.appendChild(card);
       if(state.mode === 'install') drawPreview(card.querySelector('canvas'), item);
@@ -3016,7 +3019,6 @@ function resize(){
     state.supportDirty = true;
     syncPageUI();
     fitDeckMetaText();
-    refreshInstallCancelButton();
   }
 
   function gridCenter(col,row){
@@ -3044,6 +3046,7 @@ function resize(){
     state.dragInstallStartY = 0;
     state.dragInstallMoved = false;
     state.dragInstallCardKey = '';
+    state.dragInstallTouchId = null;
     if(installDragBadge) installDragBadge.classList.remove('open');
     if(sliderWrap) sliderWrap.classList.remove('dragLock');
   }
@@ -3061,7 +3064,27 @@ function resize(){
     installDragBadge.classList.add('open');
   }
 
-  function beginInstallDragFromCard(ev, key=''){
+  function pseudoPointerEventFromTouch(touch, currentTarget=null){
+    return {
+      clientX: touch?.clientX || 0,
+      clientY: touch?.clientY || 0,
+      pointerId: null,
+      button: 0,
+      currentTarget,
+      preventDefault(){},
+      stopPropagation(){},
+    };
+  }
+
+  function findTouchByIdentifier(list, identifier){
+    if(!list || identifier == null) return null;
+    for(const t of list){
+      if(t.identifier === identifier) return t;
+    }
+    return null;
+  }
+
+  function beginInstallDragFromCard(ev, key='', touchId=null){
     if(state.mode !== 'install') return;
     if(ev.button !== undefined && ev.button !== 0) return;
     ev.preventDefault();
@@ -3077,6 +3100,7 @@ function resize(){
     state.dragInstallStartY = ev.clientY;
     state.dragInstallMoved = false;
     state.dragInstallCardKey = picked.key;
+    state.dragInstallTouchId = touchId;
     if(sliderWrap) sliderWrap.classList.add('dragLock');
     const target = ev.currentTarget;
     if(target && typeof target.setPointerCapture === 'function' && Number.isFinite(ev.pointerId)){
@@ -3111,7 +3135,6 @@ function resize(){
     if(!moved){
       const occupied = state.turrets.find(t => t.col === tile.col && t.row === tile.row);
       if(occupied){
-        hideInstallCancel();
         selectTurret(occupied.id);
         return;
       }
@@ -3166,57 +3189,10 @@ function refreshActionBar(){
 
   function canPlaceAt(col,row){ return !state.turrets.some(t => t.col===col && t.row===row); }
 
-  function hideInstallCancel(){
-    state.pendingPlaceCancelId = null;
-    if(!installCancelBtn) return;
-    installCancelBtn.classList.remove('open');
-  }
-
-  function refreshInstallCancelButton(){
-    if(!installCancelBtn) return;
-    if(!state.pendingPlaceCancelId){
-      installCancelBtn.classList.remove('open');
-      return;
-    }
-    const turret = state.turrets.find(t => t.id === state.pendingPlaceCancelId);
-    if(!turret){
-      hideInstallCancel();
-      return;
-    }
-    const yOffset = Math.max(22, state.field.tileH * 0.40);
-    installCancelBtn.style.left = Math.round(turret.x) + 'px';
-    installCancelBtn.style.top = Math.round(turret.y - yOffset) + 'px';
-    installCancelBtn.classList.add('open');
-  }
-
-  function showInstallCancelForTurret(turret){
-    if(!turret){ hideInstallCancel(); return; }
-    state.pendingPlaceCancelId = turret.id;
-    refreshInstallCancelButton();
-  }
-
-  function cancelPendingPlacement(){
-    const turret = state.turrets.find(t => t.id === state.pendingPlaceCancelId);
-    if(!turret){
-      hideInstallCancel();
-      return;
-    }
-    state.gold += turret.base.cost;
-    state.turrets = state.turrets.filter(t => t.id !== turret.id);
-    state.effects = state.effects.filter((eff) => !(eff.type === 'place' && Math.hypot((eff.x || 0) - turret.x, (eff.y || 0) - turret.y) < 20));
-    if(state.selectedTurretId === turret.id) state.selectedTurretId = null;
-    state.supportDirty = true;
-    hideInstallCancel();
-    updateHud();
-    refreshActionBar();
-    buildDeck();
-    showBanner('설치 취소', 1.0);
-  }
-
 function place(col,row){
   if(state.mode !== 'install') return;
   const occupied = state.turrets.find(t => t.col===col && t.row===row);
-  if(occupied){ hideInstallCancel(); selectTurret(occupied.id); return; }
+  if(occupied){ selectTurret(occupied.id); return; }
   const item = getInstall(state.selectedInstall);
   if(!installUnlocked(item)){ showBanner(`WAVE ${installReqWave(item.key)} 해금`, 1.1); return; }
   if(state.turrets.length >= installSlotLimit()){ showBanner(`설치 슬롯 한도 ${installSlotLimit()}기`, 1.1); return; }
@@ -3227,7 +3203,6 @@ function place(col,row){
   state.turrets.push(placedTurret);
   state.supportDirty = true;
   state.selectedTurretId = null;
-  showInstallCancelForTurret(placedTurret);
   if(hasPassive('blood_furnace') && state.energy > 6){
     state.energy -= 3;
     state.energyLossBank += 3;
@@ -3255,7 +3230,6 @@ function upgradeSelected(){
   if(state.mode === 'passive'){ buySelectedPassive(); return; }
   const t = getSelectedTurret(); if(!t) return;
   const cost = getUpgradeCost(t); if(!cost || state.gold < cost) return;
-  hideInstallCancel();
   const nextLevel = t.level + 1;
   const perkText = upgradeDeltaText(t.base, nextLevel);
   state.gold -= cost;
@@ -3272,7 +3246,6 @@ function upgradeSelected(){
 function sellSelected(){
   if(state.mode === 'passive') return;
   const t = getSelectedTurret(); if(!t) return;
-  hideInstallCancel();
   state.gold += Math.round(turretTotalSpent(t) * 0.65);
   if(hasPassive('salvage_relay')) healEnergy(2);
   state.turrets = state.turrets.filter(v => v.id !== t.id);
@@ -3291,13 +3264,11 @@ function resetGame(options={}){
   state.turrets = []; state.enemies = []; state.bullets = []; state.effects = []; state.pools = []; state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.0; state.last = 0; state.bannerUntil = 0;
   state.passives = {}; state.emergencyUsed = false; state.energyLossBank = 0; state.damageBuffs = []; state.animClock = 0;
   state.supportCache = new Map(); state.supportDirty = true;
-  hideInstallCancel();
   banner.style.display='none'; banner.style.opacity='0'; state.paused = false; syncStartToggleButton(); updateHud(); buildDeck(); updateSelectedName(); refreshActionBar(); scrollToPage(0);
 }
 
 
   function startGame(){
-    hideInstallCancel();
     if(state.menuOpen){
       if(!state.currentUser){
         openMenu('auth');
@@ -4862,7 +4833,6 @@ function onEnemyKilled(e){
     if(!tile) return;
     const occupied = state.turrets.find(t => t.col === tile.col && t.row === tile.row);
     if(occupied){
-      hideInstallCancel();
       selectTurret(occupied.id);
       return;
     }
@@ -4872,6 +4842,27 @@ function onEnemyKilled(e){
   }
   function onPointerMove(ev){ updateInstallDrag(ev); }
   function onPointerUp(ev){ endInstallDrag(ev); }
+  function onTouchMove(ev){
+    if(!state.dragInstallActive || state.dragInstallTouchId == null) return;
+    const touch = findTouchByIdentifier(ev.touches, state.dragInstallTouchId) || findTouchByIdentifier(ev.changedTouches, state.dragInstallTouchId);
+    if(!touch) return;
+    ev.preventDefault();
+    updateInstallDrag(pseudoPointerEventFromTouch(touch));
+  }
+  function onTouchEnd(ev){
+    if(!state.dragInstallActive || state.dragInstallTouchId == null) return;
+    const touch = findTouchByIdentifier(ev.changedTouches, state.dragInstallTouchId);
+    if(!touch) return;
+    ev.preventDefault();
+    endInstallDrag(pseudoPointerEventFromTouch(touch));
+  }
+  function onTouchCancel(ev){
+    if(!state.dragInstallActive || state.dragInstallTouchId == null) return;
+    const touch = findTouchByIdentifier(ev.changedTouches, state.dragInstallTouchId);
+    if(!touch) return;
+    ev.preventDefault();
+    clearInstallDragState();
+  }
   function onPointerCancel(ev){
     if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
     if(Number.isFinite(ev.pointerId) && canvas.releasePointerCapture){
@@ -4889,6 +4880,9 @@ function onEnemyKilled(e){
   window.addEventListener('pointermove', onPointerMove, { passive:true });
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
+  window.addEventListener('touchmove', onTouchMove, { passive:false });
+  window.addEventListener('touchend', onTouchEnd, { passive:false });
+  window.addEventListener('touchcancel', onTouchCancel, { passive:false });
   canvas.addEventListener('pointerleave', onPointerLeave);
   for(const btn of document.querySelectorAll('button')){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
@@ -4910,13 +4904,6 @@ function onEnemyKilled(e){
   });
   pauseBtn.addEventListener('click', () => {});
   resetBtn.addEventListener('click', resetGame);
-  if(installCancelBtn){
-    installCancelBtn.addEventListener('click', ev => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      cancelPendingPlacement();
-    });
-  }
   upgradeBtn.addEventListener('click', upgradeSelected);
   sellBtn.addEventListener('click', sellSelected);
   modeInstallBtn.addEventListener('click', () => changeMode('install'));
