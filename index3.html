@@ -1129,6 +1129,12 @@ function injectRuntimeUi(){
   dragBadge.textContent = '드래그 설치';
   document.body.appendChild(dragBadge);
 
+  const dragBadge = document.createElement('div');
+  dragBadge.id = 'installDragBadge';
+  dragBadge.className = 'installDragBadge';
+  dragBadge.textContent = '드래그 설치';
+  document.body.appendChild(dragBadge);
+
   const layer = document.createElement('div');
   layer.id = 'menuLayer';
   layer.innerHTML = `
