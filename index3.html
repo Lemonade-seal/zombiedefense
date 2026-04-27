@@ -486,6 +486,9 @@ const state = {
   state.dragInstallActive = false;
   state.dragInstallTile = null;
   state.dragInstallPointerId = null;
+  state.dragInstallStartX = 0;
+  state.dragInstallStartY = 0;
+  state.dragInstallMoved = false;
 
 
 const installMap = Object.fromEntries(INSTALLS.map(i => [i.key, i]));
@@ -3022,6 +3025,9 @@ function resize(){
     state.dragInstallActive = false;
     state.dragInstallTile = null;
     state.dragInstallPointerId = null;
+    state.dragInstallStartX = 0;
+    state.dragInstallStartY = 0;
+    state.dragInstallMoved = false;
   }
 
   function beginInstallDrag(ev){
@@ -3033,6 +3039,9 @@ function resize(){
     state.dragInstallActive = true;
     state.dragInstallPointerId = Number.isFinite(ev.pointerId) ? ev.pointerId : null;
     state.dragInstallTile = tile;
+    state.dragInstallStartX = p.x;
+    state.dragInstallStartY = p.y;
+    state.dragInstallMoved = false;
     if(canvas.setPointerCapture && Number.isFinite(ev.pointerId)){
       try{ canvas.setPointerCapture(ev.pointerId); } catch(err){}
     }
@@ -3042,6 +3051,8 @@ function resize(){
     if(!state.dragInstallActive) return;
     if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
     const p = pointerPos(ev);
+    const movedDist = Math.hypot(p.x - state.dragInstallStartX, p.y - state.dragInstallStartY);
+    if(movedDist >= 8) state.dragInstallMoved = true;
     state.dragInstallTile = tileAt(p.x, p.y);
   }
 
@@ -3051,11 +3062,22 @@ function resize(){
     ev.preventDefault();
     const p = pointerPos(ev);
     const tile = tileAt(p.x, p.y) || state.dragInstallTile;
+    const moved = state.dragInstallMoved;
     if(Number.isFinite(ev.pointerId) && canvas.releasePointerCapture){
       try{ canvas.releasePointerCapture(ev.pointerId); } catch(err){}
     }
     clearInstallDragState();
     if(!tile) return;
+    if(!moved){
+      const occupied = state.turrets.find(t => t.col === tile.col && t.row === tile.row);
+      if(occupied){
+        hideInstallCancel();
+        selectTurret(occupied.id);
+        return;
+      }
+      showBanner('기물을 드래그해서 설치하세요.', 1.0);
+      return;
+    }
     place(tile.col, tile.row);
   }
 
@@ -4772,7 +4794,7 @@ function onEnemyKilled(e){
   }
 
   function drawInstallDragPreview(){
-    if(!state.dragInstallActive || !state.dragInstallTile || state.mode !== 'install') return;
+    if(!state.dragInstallActive || !state.dragInstallMoved || !state.dragInstallTile || state.mode !== 'install') return;
     const { col, row } = state.dragInstallTile;
     const f = state.field;
     const x = f.left + col * f.tileW + 2;
