@@ -53,7 +53,7 @@
   button.small{min-height:34px;padding:0 10px;font-size:12px;border-radius:10px}
   button:disabled{opacity:.45}
   #fieldWrap{position:relative;min-height:0;background:#0c1118}
-  #game{display:block;width:100%;height:100%}
+  #game{display:block;width:100%;height:100%;touch-action:none}
   .msg{position:absolute;left:12px;right:12px;top:10px;pointer-events:none;display:flex;justify-content:center}
   #banner{display:none;background:rgba(8,12,18,.34);border:1px solid rgba(120,140,170,.32);border-radius:12px;padding:8px 12px;font-size:13px;font-weight:800;backdrop-filter:blur(3px);max-width:92%;text-align:center;opacity:0;transition:opacity .22s ease}
   .bottombar{padding:8px 10px 10px;border-top:1px solid var(--line);background:rgba(15,20,29,.98);display:grid;gap:8px;grid-template-rows:34px 116px 42px}
@@ -4797,7 +4797,14 @@ function onEnemyKilled(e){
   function onPointerUp(ev){ endInstallDrag(ev); }
   function onPointerCancel(ev){
     if(Number.isFinite(state.dragInstallPointerId) && Number.isFinite(ev.pointerId) && state.dragInstallPointerId !== ev.pointerId) return;
+    if(Number.isFinite(ev.pointerId) && canvas.releasePointerCapture){
+      try{ canvas.releasePointerCapture(ev.pointerId); } catch(err){}
+    }
     clearInstallDragState();
+  }
+  function onPointerLeave(ev){
+    if(!state.dragInstallActive) return;
+    updateInstallDrag(ev);
   }
   function loop(ts){ const now = ts / 1000; const dt = Math.min(0.033, state.last ? now - state.last : 0.016); state.last = now; update(dt); draw(); requestAnimationFrame(loop); }
 
@@ -4805,7 +4812,7 @@ function onEnemyKilled(e){
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('pointercancel', onPointerCancel);
-  canvas.addEventListener('pointerleave', onPointerCancel);
+  canvas.addEventListener('pointerleave', onPointerLeave);
   for(const btn of document.querySelectorAll('button')){
     btn.addEventListener('pointerdown', ev => flashButton(btn, ev));
   }
