@@ -5151,7 +5151,7 @@ function onEnemyKilled(e){
     renderLeaderboard([]);
     renderPresence([], 0);
     renderChatMessages([]);
-    await playUpdateOverlay(true);
+    await playUpdateOverlay(false);
     await hydrateSession();
     requestAnimationFrame(loop);
   }
