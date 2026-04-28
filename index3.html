@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-28-04';
+  const BUILD_VERSION = '2026-04-28-05';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -232,10 +232,10 @@
     '적 계열(STALKER/HOPPER/SPECTER) 추가로 웨이브 조합 다양화',
     '적 이동에 지그재그/부유/돌진 모션을 적용해 전투 리듬 강화',
     '초반 적 비주얼을 RED/BLUE 레이더 스타일로 재디자인',
-    '이메일/비밀번호 회원가입 대신 Google 계정 로그인 방식으로 전환',
-    'Google 로그인 버튼 클릭 시 인증 페이지 이동 실패하는 문제 수정',
-    'Google OAuth redirect 경로를 루트 기준으로 고정해 접속 오류 완화',
-    'Google provider 미활성 상태에서 JSON 오류 페이지로 이동하던 흐름 차단',
+    '이메일/비밀번호 회원가입 대신 Kakao 계정 로그인 방식으로 전환',
+    'Kakao 로그인 버튼 클릭 시 인증 페이지 이동 실패하는 문제 수정',
+    'Kakao OAuth redirect 경로를 루트 기준으로 고정해 접속 오류 완화',
+    'Kakao provider 미활성 상태에서 JSON 오류 페이지로 이동하던 흐름 차단',
     'OAuth URL 사전 점검으로 authorize.json 다운로드 오류 노출 최소화',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
@@ -1179,10 +1179,10 @@ function injectRuntimeUi(){
           </div>
 
           <div class="authBox">
-            <div class="authBoxTitle">Google 로그인</div>
+            <div class="authBoxTitle">Kakao 로그인</div>
             <div class="authSummary">
               이메일/비밀번호 회원가입은 종료되었습니다.<br />
-              <strong>Google 계정으로 바로 로그인</strong>해 게임을 시작하세요.
+              <strong>Kakao 계정으로 바로 로그인</strong>해 게임을 시작하세요.
             </div>
             <label class="menuField" style="display:none">이메일 주소
               <input id="loginIdInput" type="email" maxlength="120" placeholder="가입한 이메일 주소 입력" autocomplete="email" autocapitalize="off" spellcheck="false" />
@@ -1197,7 +1197,7 @@ function injectRuntimeUi(){
               </div>
             </div>
             <div class="authButtons">
-              <button id="authLoginBtn" class="primary">Google로 시작</button>
+              <button id="authLoginBtn" class="primary">Kakao로 시작</button>
               <button id="authRegisterOpenBtn" disabled>이메일 가입 종료</button>
             </div>
           </div>
@@ -1205,7 +1205,7 @@ function injectRuntimeUi(){
           <div class="authBox">
             <div class="authBoxTitle">진행 방법 설명</div>
             <div class="authSummary">
-              Google 로그인 버튼을 누르면 인증 화면으로 이동합니다.
+              Kakao 로그인 버튼을 누르면 인증 화면으로 이동합니다.
               인증이 끝나면 자동으로 이 화면으로 돌아오며, 다시 로그인 버튼을 누르면 바로 전장으로 이동합니다.
             </div>
           </div>
@@ -2439,9 +2439,9 @@ function renderMenu(view='auto'){
   homeView.hidden = forceAuth;
   if(forceAuth){
     if(menuEyebrow) menuEyebrow.textContent = 'LOGIN · ONLINE ACCOUNT';
-    menuTitle.textContent = '좀비 막기게임 Google 로그인';
-    menuSubtitle.textContent = '로그인 전에는 Google 인증 화면만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.';
-    authNotice.textContent = '이메일 가입은 종료되었습니다. Google 로그인으로만 계정을 연결합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 전장 화면에 들어갈 수 있습니다.';
+    menuTitle.textContent = '좀비 막기게임 Kakao 로그인';
+    menuSubtitle.textContent = '로그인 전에는 Kakao 인증 화면만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.';
+    authNotice.textContent = '이메일 가입은 종료되었습니다. Kakao 로그인으로만 계정을 연결합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 전장 화면에 들어갈 수 있습니다.';
     return;
   }
   const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
@@ -2514,23 +2514,23 @@ async function loginOnlineUser(){
   try{
     const redirectTo = `${window.location.origin}/`;
     const { data, error } = await state.supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider: 'kakao',
       options: { redirectTo, queryParams: { prompt: 'select_account' }, skipBrowserRedirect: true },
     });
     if(error){
       const raw = String(error.message || '');
       if(/unsupported provider|provider is not enabled/i.test(raw)){
-        setAuthStatus('Google 로그인이 아직 Supabase에서 활성화되지 않았습니다. Dashboard > Authentication > Providers > Google 을 켜주세요.');
+        setAuthStatus('Kakao 로그인이 아직 Supabase에서 활성화되지 않았습니다. Dashboard > Authentication > Providers > Kakao 를 켜주세요.');
       } else {
-        setAuthStatus(`Google 로그인 실패: ${raw}`);
+        setAuthStatus(`Kakao 로그인 실패: ${raw}`);
       }
-      showBanner('Google 로그인 실패', 1.4);
+      showBanner('Kakao 로그인 실패', 1.4);
       return;
     }
     writeAutoLoginPreference(autoLoginEnabled);
     clearSavedLoginCredentials();
-    setAuthStatus('Google 인증 페이지로 이동합니다...', true);
-    showBanner('Google 로그인', 1.1);
+    setAuthStatus('Kakao 인증 페이지로 이동합니다...', true);
+    showBanner('Kakao 로그인', 1.1);
     const oauthUrl = data?.url || '';
     if(oauthUrl && /^https?:\/\//i.test(oauthUrl)){
       try{
@@ -2538,23 +2538,23 @@ async function loginOnlineUser(){
         if(probe.status >= 400){
           const rawText = await probe.text();
           if(/unsupported provider|provider is not enabled/i.test(rawText)){
-            setAuthStatus('Google Provider가 Supabase에서 비활성화되어 있습니다. Dashboard > Authentication > Providers > Google 을 활성화해 주세요.');
+            setAuthStatus('Kakao Provider가 Supabase에서 비활성화되어 있습니다. Dashboard > Authentication > Providers > Kakao 를 활성화해 주세요.');
           } else {
-            setAuthStatus(`Google 로그인 준비 실패 (${probe.status}). Supabase OAuth 설정을 확인해 주세요.`);
+            setAuthStatus(`Kakao 로그인 준비 실패 (${probe.status}). Supabase OAuth 설정을 확인해 주세요.`);
           }
-          showBanner('Google 로그인 실패', 1.4);
+          showBanner('Kakao 로그인 실패', 1.4);
           return;
         }
       } catch(err){}
       window.location.assign(oauthUrl);
     } else {
-      setAuthStatus('Google 인증 URL 생성에 실패했습니다. Supabase OAuth 설정을 확인해 주세요.');
-      showBanner('Google 로그인 실패', 1.4);
+      setAuthStatus('Kakao 인증 URL 생성에 실패했습니다. Supabase OAuth 설정을 확인해 주세요.');
+      showBanner('Kakao 로그인 실패', 1.4);
     }
   } catch(err){
     const message = err?.message || String(err);
-    setAuthStatus(`Google 로그인 실패: ${message}`);
-    showBanner('Google 로그인 실패', 1.3);
+    setAuthStatus(`Kakao 로그인 실패: ${message}`);
+    showBanner('Kakao 로그인 실패', 1.3);
   } finally {
     if(authLoginBtn) authLoginBtn.disabled = false;
   }
@@ -2837,7 +2837,7 @@ async function hydrateSession(){
   updateUserBadge();
   syncSavedLoginInputs(true);
   openMenu('auth');
-  if(ok) setAuthStatus('기존 Google 세션이 감지되었습니다. 로그인 버튼을 누르면 바로 전장으로 이동합니다.', true);
+  if(ok) setAuthStatus('기존 Kakao 세션이 감지되었습니다. 로그인 버튼을 누르면 바로 전장으로 이동합니다.', true);
 }
 
 async function saveSupabaseSettingsFromInputs(){
@@ -5234,8 +5234,8 @@ function onEnemyKilled(e){
   policyRejectBtn.type = 'button';
   policyAgreeBtn.type = 'button';
   authRegisterOpenBtn.addEventListener('click', () => {
-    setAuthStatus('이메일 회원가입은 종료되었습니다. Google 로그인 버튼을 이용해 주세요.');
-    showBanner('Google 로그인만 지원', 1.4);
+    setAuthStatus('이메일 회원가입은 종료되었습니다. Kakao 로그인 버튼을 이용해 주세요.');
+    showBanner('Kakao 로그인만 지원', 1.4);
   });
   registerCloseBtn.addEventListener('click', () => closeRegisterModal());
   registerModal.querySelector('.policyBackdrop').addEventListener('click', () => closeRegisterModal(true));
