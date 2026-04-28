@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-28-03';
+  const BUILD_VERSION = '2026-04-28-04';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -236,6 +236,7 @@
     'Google 로그인 버튼 클릭 시 인증 페이지 이동 실패하는 문제 수정',
     'Google OAuth redirect 경로를 루트 기준으로 고정해 접속 오류 완화',
     'Google provider 미활성 상태에서 JSON 오류 페이지로 이동하던 흐름 차단',
+    'OAuth URL 사전 점검으로 authorize.json 다운로드 오류 노출 최소화',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -2531,8 +2532,22 @@ async function loginOnlineUser(){
     setAuthStatus('Google 인증 페이지로 이동합니다...', true);
     showBanner('Google 로그인', 1.1);
     const oauthUrl = data?.url || '';
-    if(oauthUrl && /^https?:\/\//i.test(oauthUrl)) window.location.assign(oauthUrl);
-    else {
+    if(oauthUrl && /^https?:\/\//i.test(oauthUrl)){
+      try{
+        const probe = await fetch(oauthUrl, { method:'GET', redirect:'manual', headers:{ accept:'application/json' } });
+        if(probe.status >= 400){
+          const rawText = await probe.text();
+          if(/unsupported provider|provider is not enabled/i.test(rawText)){
+            setAuthStatus('Google Provider가 Supabase에서 비활성화되어 있습니다. Dashboard > Authentication > Providers > Google 을 활성화해 주세요.');
+          } else {
+            setAuthStatus(`Google 로그인 준비 실패 (${probe.status}). Supabase OAuth 설정을 확인해 주세요.`);
+          }
+          showBanner('Google 로그인 실패', 1.4);
+          return;
+        }
+      } catch(err){}
+      window.location.assign(oauthUrl);
+    } else {
       setAuthStatus('Google 인증 URL 생성에 실패했습니다. Supabase OAuth 설정을 확인해 주세요.');
       showBanner('Google 로그인 실패', 1.4);
     }
