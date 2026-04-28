@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-28-01';
+  const BUILD_VERSION = '2026-04-28-02';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -234,6 +234,7 @@
     '초반 적 비주얼을 RED/BLUE 레이더 스타일로 재디자인',
     '이메일/비밀번호 회원가입 대신 Google 계정 로그인 방식으로 전환',
     'Google 로그인 버튼 클릭 시 인증 페이지 이동 실패하는 문제 수정',
+    'Google OAuth redirect 경로를 루트 기준으로 고정해 접속 오류 완화',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -2509,19 +2510,13 @@ async function loginOnlineUser(){
     return;
   }
   try{
-    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    const redirectTo = `${window.location.origin}/`;
     const { data, error } = await state.supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo, queryParams: { prompt: 'select_account' }, skipBrowserRedirect: true },
+      options: { redirectTo, queryParams: { prompt: 'select_account' } },
     });
     if(error){
       setAuthStatus(`Google 로그인 실패: ${error.message}`);
-      showBanner('Google 로그인 실패', 1.4);
-      return;
-    }
-    const oauthUrl = data?.url || '';
-    if(!oauthUrl){
-      setAuthStatus('Google 인증 URL을 받지 못했습니다. Supabase OAuth 설정을 확인해 주세요.');
       showBanner('Google 로그인 실패', 1.4);
       return;
     }
@@ -2529,7 +2524,8 @@ async function loginOnlineUser(){
     clearSavedLoginCredentials();
     setAuthStatus('Google 인증 페이지로 이동합니다...', true);
     showBanner('Google 로그인', 1.1);
-    window.location.assign(oauthUrl);
+    const oauthUrl = data?.url || '';
+    if(oauthUrl && /^https?:\/\//i.test(oauthUrl)) window.location.assign(oauthUrl);
   } catch(err){
     const message = err?.message || String(err);
     setAuthStatus(`Google 로그인 실패: ${message}`);
