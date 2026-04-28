@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-27-06';
+  const BUILD_VERSION = '2026-04-27-07';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -232,6 +232,7 @@
     '적 계열(STALKER/HOPPER/SPECTER) 추가로 웨이브 조합 다양화',
     '적 이동에 지그재그/부유/돌진 모션을 적용해 전투 리듬 강화',
     '초반 적 비주얼을 RED/BLUE 레이더 스타일로 재디자인',
+    '이메일/비밀번호 회원가입 대신 Google 계정 로그인 방식으로 전환',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -1174,12 +1175,16 @@ function injectRuntimeUi(){
           </div>
 
           <div class="authBox">
-            <div class="authBoxTitle">로그인</div>
-            <label class="menuField">이메일 주소
+            <div class="authBoxTitle">Google 로그인</div>
+            <div class="authSummary">
+              이메일/비밀번호 회원가입은 종료되었습니다.<br />
+              <strong>Google 계정으로 바로 로그인</strong>해 게임을 시작하세요.
+            </div>
+            <label class="menuField" style="display:none">이메일 주소
               <input id="loginIdInput" type="email" maxlength="120" placeholder="가입한 이메일 주소 입력" autocomplete="email" autocapitalize="off" spellcheck="false" />
               <div class="fieldRule">Supabase 로그인용 이메일 주소</div>
             </label>
-            <label class="menuField">비밀번호
+            <label class="menuField" style="display:none">비밀번호
               <input id="loginPassInput" type="password" maxlength="72" placeholder="비밀번호 입력" autocomplete="current-password" />
             </label>
             <div class="authChecks">
@@ -1188,16 +1193,16 @@ function injectRuntimeUi(){
               </div>
             </div>
             <div class="authButtons">
-              <button id="authLoginBtn" class="primary">로그인</button>
-              <button id="authRegisterOpenBtn">회원가입</button>
+              <button id="authLoginBtn" class="primary">Google로 시작</button>
+              <button id="authRegisterOpenBtn" disabled>이메일 가입 종료</button>
             </div>
           </div>
 
           <div class="authBox">
             <div class="authBoxTitle">진행 방법 설명</div>
             <div class="authSummary">
-              회원가입 버튼으로 계정을 만든 뒤 <strong>가입한 이메일과 비밀번호</strong>로 로그인하면 전장 화면으로 바로 이동합니다.
-              전장으로 이동한 뒤 상단 시작 버튼을 눌러야 첫 웨이브가 시작됩니다.
+              Google 로그인 버튼을 누르면 인증 화면으로 이동합니다.
+              인증이 끝나면 자동으로 이 화면으로 돌아오며, 다시 로그인 버튼을 누르면 바로 전장으로 이동합니다.
             </div>
           </div>
         </div>
@@ -2430,9 +2435,9 @@ function renderMenu(view='auto'){
   homeView.hidden = forceAuth;
   if(forceAuth){
     if(menuEyebrow) menuEyebrow.textContent = 'LOGIN · ONLINE ACCOUNT';
-    menuTitle.textContent = '좀비 막기게임 로그인';
-    menuSubtitle.textContent = '로그인 전에는 로그인 화면과 회원가입만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.';
-    authNotice.textContent = '회원가입이 완료되면 로그인 화면으로 자동 이동합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 전장 화면에 들어갈 수 있습니다.';
+    menuTitle.textContent = '좀비 막기게임 Google 로그인';
+    menuSubtitle.textContent = '로그인 전에는 Google 인증 화면만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.';
+    authNotice.textContent = '이메일 가입은 종료되었습니다. Google 로그인으로만 계정을 연결합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 전장 화면에 들어갈 수 있습니다.';
     return;
   }
   const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
@@ -2446,9 +2451,10 @@ function renderMenu(view='auto'){
 
 async function applyOnlineUser(user, preferredName='', preferredRecoveryEmail=''){
   const meta = user?.user_metadata || {};
-  const loginId = normalizeLoginId(meta.login_id || '');
-  const name = normalizeUsername(preferredName || meta.display_name || '') || deriveDisplayName(loginId || '', 'PLAYER');
-  const recoveryEmail = normalizeRecoveryEmail(preferredRecoveryEmail || meta.recovery_email || '');
+  const emailLocal = String(user?.email || '').split('@')[0] || 'player';
+  const loginId = normalizeLoginId(meta.login_id || emailLocal || '');
+  const name = normalizeUsername(preferredName || meta.display_name || meta.full_name || '') || deriveDisplayName(loginId || emailLocal || '', 'PLAYER');
+  const recoveryEmail = normalizeRecoveryEmail(preferredRecoveryEmail || meta.recovery_email || user?.email || '');
   state.currentUser = {
     key: user.id,
     userId: user.id,
@@ -2487,10 +2493,8 @@ async function validateRegisterForm(){
 }
 
 async function loginOnlineUser(){
-  const loginValue = String(loginIdInput.value || '').trim();
-  const pass = String(loginPassInput.value || '');
   const autoLoginEnabled = !!(autoLoginCheck && autoLoginCheck.checked);
-  if(state.currentUser && !loginValue && !pass){
+  if(state.currentUser){
     state.authFlowUnlocked = true;
     updateAuthGate();
     setAuthStatus('로그인 완료. 전장 화면으로 이동합니다.', true);
@@ -2498,49 +2502,26 @@ async function loginOnlineUser(){
     showBanner('전장 이동', 1.2);
     return;
   }
-  const authEmail = normalizeRecoveryEmail(loginValue);
-  if(!loginValue || !pass){
-    setAuthStatus('가입한 이메일과 비밀번호를 입력하세요.');
-    showBanner('로그인 정보를 입력하세요.', 1.6);
-    return;
-  }
   if(!initSupabaseClient()) return;
-  if(!isValidRecoveryEmail(authEmail)){
-    setAuthStatus('로그인은 가입한 이메일 주소로 진행해야 합니다.');
-    return;
-  }
-  if(pass.length < 4){ setAuthStatus('비밀번호를 입력하세요.'); return; }
   try{
-    const { data, error } = await state.supabase.auth.signInWithPassword({ email: authEmail, password: pass });
+    const redirectTo = `${window.location.origin}${window.location.pathname}${window.location.search || ''}`;
+    const { error } = await state.supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo, queryParams: { prompt: 'select_account' } },
+    });
     if(error){
-      setAuthStatus(`로그인 실패: ${error.message}`);
-      showBanner('로그인 실패', 1.2);
-      return;
-    }
-    let user = data?.user || data?.session?.user || null;
-    if(!user){
-      const sessionResult = await state.supabase.auth.getSession();
-      user = sessionResult?.data?.session?.user || null;
-    }
-    if(!user){
-      setAuthStatus('로그인 세션을 만들지 못했습니다.');
-      showBanner('로그인 실패', 1.2);
+      setAuthStatus(`Google 로그인 실패: ${error.message}`);
+      showBanner('Google 로그인 실패', 1.4);
       return;
     }
     writeAutoLoginPreference(autoLoginEnabled);
-    if(autoLoginEnabled) writeSavedLoginCredentials(authEmail, pass);
-    else clearSavedLoginCredentials();
-    await applyOnlineUser(user);
-    state.authFlowUnlocked = true;
-    updateAuthGate();
-    loginPassInput.value = '';
-    setAuthStatus(`${authEmail} 계정으로 로그인했습니다.`, true);
-    closeMenu();
-    showBanner('온라인 로그인', 1.2);
+    clearSavedLoginCredentials();
+    setAuthStatus('Google 인증 페이지로 이동합니다...', true);
+    showBanner('Google 로그인', 1.1);
   } catch(err){
     const message = err?.message || String(err);
-    setAuthStatus(`로그인 실패: ${message}`);
-    showBanner('로그인 실패', 1.2);
+    setAuthStatus(`Google 로그인 실패: ${message}`);
+    showBanner('Google 로그인 실패', 1.3);
   }
 }
 
@@ -2821,7 +2802,7 @@ async function hydrateSession(){
   updateUserBadge();
   syncSavedLoginInputs(true);
   openMenu('auth');
-  if(ok) setAuthStatus('기존 세션이 있어도 시작 시 로그인 화면부터 표시됩니다. 로그인 버튼을 눌러 진행하세요.', true);
+  if(ok) setAuthStatus('기존 Google 세션이 감지되었습니다. 로그인 버튼을 누르면 바로 전장으로 이동합니다.', true);
 }
 
 async function saveSupabaseSettingsFromInputs(){
@@ -5217,7 +5198,10 @@ function onEnemyKilled(e){
   policyCloseBtn.type = 'button';
   policyRejectBtn.type = 'button';
   policyAgreeBtn.type = 'button';
-  authRegisterOpenBtn.addEventListener('click', () => openRegisterModal(true));
+  authRegisterOpenBtn.addEventListener('click', () => {
+    setAuthStatus('이메일 회원가입은 종료되었습니다. Google 로그인 버튼을 이용해 주세요.');
+    showBanner('Google 로그인만 지원', 1.4);
+  });
   registerCloseBtn.addEventListener('click', () => closeRegisterModal());
   registerModal.querySelector('.policyBackdrop').addEventListener('click', () => closeRegisterModal(true));
   authLoginBtn.addEventListener('click', ev => { ev.preventDefault(); loginCurrentMode(); });
