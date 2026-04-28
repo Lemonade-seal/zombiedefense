@@ -60,8 +60,6 @@
   .caption{display:grid;grid-template-columns:1fr auto;align-items:center;color:var(--muted);font-size:11px;font-weight:700;padding:0 2px;gap:8px;min-height:34px}
   .captionRight{display:flex;gap:8px;align-items:center}
   .dots{display:flex;gap:5px;align-items:center}
-  .pageNavBtns{display:flex;gap:6px;align-items:center}
-  .pageNavBtn{min-height:28px;padding:0 10px;font-size:11px;border-radius:9px}
   .seg{display:flex;gap:6px;align-items:center}
   .seg .tab{min-height:30px;padding:0 10px;font-size:11px;border-radius:10px}
   .dot{width:8px;height:8px;border-radius:999px;background:#334157;border:1px solid #495872}
@@ -178,10 +176,6 @@
           <button id="modePassiveBtn" class="small tab">패시브</button>
         </div>
         <div class="dots" id="pageDots"></div>
-        <div class="pageNavBtns">
-          <button id="pagePrevBtn" class="pageNavBtn">◀</button>
-          <button id="pageNextBtn" class="pageNavBtn">▶</button>
-        </div>
       </div>
     </div>
     <div class="sliderWrap" id="sliderWrap"><div class="track" id="deckTrack"></div></div>
@@ -219,8 +213,6 @@
   const sellBtn = document.getElementById('sellBtn');
   const modeInstallBtn = document.getElementById('modeInstallBtn');
   const modePassiveBtn = document.getElementById('modePassiveBtn');
-  const pagePrevBtn = document.getElementById('pagePrevBtn');
-  const pageNextBtn = document.getElementById('pageNextBtn');
   const app = document.getElementById('app');
   const controls = document.querySelector('.controls');
 
@@ -228,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-27-03';
+  const BUILD_VERSION = '2026-04-28-05';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -237,6 +229,14 @@
     '업데이트 후 실행 시 업데이트 오버레이가 반드시 표시되도록 보강',
     '카드 롱프레스 드래그 시작 시간을 1초 → 0.5초로 단축',
     '페이지 전환은 카드 슬라이드(스와이프) 방식만 유지',
+    '적 계열(STALKER/HOPPER/SPECTER) 추가로 웨이브 조합 다양화',
+    '적 이동에 지그재그/부유/돌진 모션을 적용해 전투 리듬 강화',
+    '초반 적 비주얼을 RED/BLUE 레이더 스타일로 재디자인',
+    '이메일/비밀번호 회원가입 대신 Kakao 계정 로그인 방식으로 전환',
+    'Kakao 로그인 버튼 클릭 시 인증 페이지 이동 실패하는 문제 수정',
+    'Kakao OAuth redirect 경로를 루트 기준으로 고정해 접속 오류 완화',
+    'Kakao provider 미활성 상태에서 JSON 오류 페이지로 이동하던 흐름 차단',
+    'OAuth URL 사전 점검으로 authorize.json 다운로드 오류 노출 최소화',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -248,8 +248,6 @@
   const SUPABASE_TABLE = 'game_profiles';
   const SUPABASE_PRESENCE_TABLE = 'game_presence';
   const SUPABASE_CHAT_TABLE = 'game_chat_messages';
-
-  removeLegacyPageNavButtons();
 
   injectRuntimeUi();
 
@@ -381,12 +379,15 @@ const PASSIVES = [
 
 
   const FAMILIES = [
-    {family:'walker', label:'WALKER', baseHp:34, hpInc:7, speed:30, speedInc:1.2, reward:7, size:17, color:'#8ed26b', body:'walker', baseDamage:4},
-    {family:'runner', label:'RUNNER', baseHp:24, hpInc:5, speed:53, speedInc:1.6, reward:8, size:15, color:'#f2cf69', body:'runner', baseDamage:5, dodge:0.08, enragedAt:0.45},
+    {family:'walker', label:'WALKER', baseHp:34, hpInc:7, speed:30, speedInc:1.2, reward:7, size:17, color:'#ff6e6e', body:'raider_red', baseDamage:4},
+    {family:'runner', label:'RUNNER', baseHp:24, hpInc:5, speed:53, speedInc:1.6, reward:8, size:15, color:'#69a7ff', body:'raider_blue', baseDamage:5, dodge:0.08, enragedAt:0.45},
     {family:'brute', label:'BRUTE', baseHp:82, hpInc:13, speed:19, speedInc:0.8, reward:13, size:22, color:'#e98b8b', body:'brute', baseDamage:9, armor:0.12, smash:1},
     {family:'toxic', label:'TOXIC', baseHp:44, hpInc:8, speed:32, speedInc:1.1, reward:10, size:18, color:'#7be2a0', body:'toxic', baseDamage:5, deathPoison:5},
     {family:'shield', label:'SHIELD', baseHp:52, hpInc:9, speed:28, speedInc:1.0, reward:11, size:18, color:'#9fc3ff', body:'shield', baseDamage:6, shield:26, armor:0.08},
-    {family:'spitter', label:'SPITTER', baseHp:38, hpInc:7, speed:29, speedInc:1.0, reward:12, size:17, color:'#cf9aff', body:'spitter', baseDamage:5, ranged:true, spitDamage:6, spitRange:130, spitRate:1.25}
+    {family:'spitter', label:'SPITTER', baseHp:38, hpInc:7, speed:29, speedInc:1.0, reward:12, size:17, color:'#cf9aff', body:'spitter', baseDamage:5, ranged:true, spitDamage:6, spitRange:130, spitRate:1.25},
+    {family:'stalker', label:'STALKER', baseHp:40, hpInc:7, speed:35, speedInc:1.2, reward:11, size:16, color:'#7fd0ff', body:'stalker', baseDamage:5, phase:0.06, weaveAmp:12, weaveFreq:3.8},
+    {family:'hopper', label:'HOPPER', baseHp:30, hpInc:6, speed:45, speedInc:1.4, reward:10, size:16, color:'#ffb878', body:'hopper', baseDamage:6, dashEvery:2.6, dashBoost:0.70, pulseAmp:0.22, pulseFreq:3.2},
+    {family:'specter', label:'SPECTER', baseHp:36, hpInc:7, speed:31, speedInc:1.1, reward:12, size:17, color:'#d6d9ff', body:'specter', baseDamage:5, dodge:0.05, driftAmp:9, driftFreq:2.4, pulseAmp:0.14, pulseFreq:2.2}
   ];
 
   const PREFIXES = [
@@ -450,6 +451,14 @@ const PASSIVES = [
           curseRate: prefix.trait.curseRate || 0,
           smash: fam.smash || 0,
           rewardBonus: prefix.trait.rewardBonus || 0,
+          weaveAmp: fam.weaveAmp || 0,
+          weaveFreq: fam.weaveFreq || 0,
+          driftAmp: fam.driftAmp || 0,
+          driftFreq: fam.driftFreq || 0,
+          pulseAmp: fam.pulseAmp || 0,
+          pulseFreq: fam.pulseFreq || 0,
+          dashEvery: fam.dashEvery || 0,
+          dashBoost: fam.dashBoost || 0,
         });
       });
     });
@@ -1170,12 +1179,16 @@ function injectRuntimeUi(){
           </div>
 
           <div class="authBox">
-            <div class="authBoxTitle">로그인</div>
-            <label class="menuField">이메일 주소
+            <div class="authBoxTitle">Kakao 로그인</div>
+            <div class="authSummary">
+              이메일/비밀번호 회원가입은 종료되었습니다.<br />
+              <strong>Kakao 계정으로 바로 로그인</strong>해 게임을 시작하세요.
+            </div>
+            <label class="menuField" style="display:none">이메일 주소
               <input id="loginIdInput" type="email" maxlength="120" placeholder="가입한 이메일 주소 입력" autocomplete="email" autocapitalize="off" spellcheck="false" />
               <div class="fieldRule">Supabase 로그인용 이메일 주소</div>
             </label>
-            <label class="menuField">비밀번호
+            <label class="menuField" style="display:none">비밀번호
               <input id="loginPassInput" type="password" maxlength="72" placeholder="비밀번호 입력" autocomplete="current-password" />
             </label>
             <div class="authChecks">
@@ -1184,16 +1197,16 @@ function injectRuntimeUi(){
               </div>
             </div>
             <div class="authButtons">
-              <button id="authLoginBtn" class="primary">로그인</button>
-              <button id="authRegisterOpenBtn">회원가입</button>
+              <button id="authLoginBtn" class="primary">Kakao로 시작</button>
+              <button id="authRegisterOpenBtn" disabled>이메일 가입 종료</button>
             </div>
           </div>
 
           <div class="authBox">
             <div class="authBoxTitle">진행 방법 설명</div>
             <div class="authSummary">
-              회원가입 버튼으로 계정을 만든 뒤 <strong>가입한 이메일과 비밀번호</strong>로 로그인하면 전장 화면으로 바로 이동합니다.
-              전장으로 이동한 뒤 상단 시작 버튼을 눌러야 첫 웨이브가 시작됩니다.
+              Kakao 로그인 버튼을 누르면 인증 화면으로 이동합니다.
+              인증이 끝나면 자동으로 이 화면으로 돌아오며, 다시 로그인 버튼을 누르면 바로 전장으로 이동합니다.
             </div>
           </div>
         </div>
@@ -1588,11 +1601,6 @@ function syncAutoLoginCheckbox(){
 
 function delay(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function removeLegacyPageNavButtons(){
-  const legacyNodes = document.querySelectorAll('#pagePrevBtn, #pageNextBtn, .pageNavBtns');
-  legacyNodes.forEach(node => node.remove());
 }
 
 async function playUpdateOverlay(force=false){
@@ -2431,9 +2439,9 @@ function renderMenu(view='auto'){
   homeView.hidden = forceAuth;
   if(forceAuth){
     if(menuEyebrow) menuEyebrow.textContent = 'LOGIN · ONLINE ACCOUNT';
-    menuTitle.textContent = '좀비 막기게임 로그인';
-    menuSubtitle.textContent = '로그인 전에는 로그인 화면과 회원가입만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.';
-    authNotice.textContent = '회원가입이 완료되면 로그인 화면으로 자동 이동합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 전장 화면에 들어갈 수 있습니다.';
+    menuTitle.textContent = '좀비 막기게임 Kakao 로그인';
+    menuSubtitle.textContent = '로그인 전에는 Kakao 인증 화면만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.';
+    authNotice.textContent = '이메일 가입은 종료되었습니다. Kakao 로그인으로만 계정을 연결합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 전장 화면에 들어갈 수 있습니다.';
     return;
   }
   const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
@@ -2447,9 +2455,10 @@ function renderMenu(view='auto'){
 
 async function applyOnlineUser(user, preferredName='', preferredRecoveryEmail=''){
   const meta = user?.user_metadata || {};
-  const loginId = normalizeLoginId(meta.login_id || '');
-  const name = normalizeUsername(preferredName || meta.display_name || '') || deriveDisplayName(loginId || '', 'PLAYER');
-  const recoveryEmail = normalizeRecoveryEmail(preferredRecoveryEmail || meta.recovery_email || '');
+  const emailLocal = String(user?.email || '').split('@')[0] || 'player';
+  const loginId = normalizeLoginId(meta.login_id || emailLocal || '');
+  const name = normalizeUsername(preferredName || meta.display_name || meta.full_name || '') || deriveDisplayName(loginId || emailLocal || '', 'PLAYER');
+  const recoveryEmail = normalizeRecoveryEmail(preferredRecoveryEmail || meta.recovery_email || user?.email || '');
   state.currentUser = {
     key: user.id,
     userId: user.id,
@@ -2488,10 +2497,8 @@ async function validateRegisterForm(){
 }
 
 async function loginOnlineUser(){
-  const loginValue = String(loginIdInput.value || '').trim();
-  const pass = String(loginPassInput.value || '');
   const autoLoginEnabled = !!(autoLoginCheck && autoLoginCheck.checked);
-  if(state.currentUser && !loginValue && !pass){
+  if(state.currentUser){
     state.authFlowUnlocked = true;
     updateAuthGate();
     setAuthStatus('로그인 완료. 전장 화면으로 이동합니다.', true);
@@ -2499,49 +2506,57 @@ async function loginOnlineUser(){
     showBanner('전장 이동', 1.2);
     return;
   }
-  const authEmail = normalizeRecoveryEmail(loginValue);
-  if(!loginValue || !pass){
-    setAuthStatus('가입한 이메일과 비밀번호를 입력하세요.');
-    showBanner('로그인 정보를 입력하세요.', 1.6);
+  if(authLoginBtn) authLoginBtn.disabled = true;
+  if(!initSupabaseClient()){
+    if(authLoginBtn) authLoginBtn.disabled = false;
     return;
   }
-  if(!initSupabaseClient()) return;
-  if(!isValidRecoveryEmail(authEmail)){
-    setAuthStatus('로그인은 가입한 이메일 주소로 진행해야 합니다.');
-    return;
-  }
-  if(pass.length < 4){ setAuthStatus('비밀번호를 입력하세요.'); return; }
   try{
-    const { data, error } = await state.supabase.auth.signInWithPassword({ email: authEmail, password: pass });
+    const redirectTo = `${window.location.origin}/`;
+    const { data, error } = await state.supabase.auth.signInWithOAuth({
+      provider: 'kakao',
+      options: { redirectTo, queryParams: { prompt: 'select_account' }, skipBrowserRedirect: true },
+    });
     if(error){
-      setAuthStatus(`로그인 실패: ${error.message}`);
-      showBanner('로그인 실패', 1.2);
-      return;
-    }
-    let user = data?.user || data?.session?.user || null;
-    if(!user){
-      const sessionResult = await state.supabase.auth.getSession();
-      user = sessionResult?.data?.session?.user || null;
-    }
-    if(!user){
-      setAuthStatus('로그인 세션을 만들지 못했습니다.');
-      showBanner('로그인 실패', 1.2);
+      const raw = String(error.message || '');
+      if(/unsupported provider|provider is not enabled/i.test(raw)){
+        setAuthStatus('Kakao 로그인이 아직 Supabase에서 활성화되지 않았습니다. Dashboard > Authentication > Providers > Kakao 를 켜주세요.');
+      } else {
+        setAuthStatus(`Kakao 로그인 실패: ${raw}`);
+      }
+      showBanner('Kakao 로그인 실패', 1.4);
       return;
     }
     writeAutoLoginPreference(autoLoginEnabled);
-    if(autoLoginEnabled) writeSavedLoginCredentials(authEmail, pass);
-    else clearSavedLoginCredentials();
-    await applyOnlineUser(user);
-    state.authFlowUnlocked = true;
-    updateAuthGate();
-    loginPassInput.value = '';
-    setAuthStatus(`${authEmail} 계정으로 로그인했습니다.`, true);
-    closeMenu();
-    showBanner('온라인 로그인', 1.2);
+    clearSavedLoginCredentials();
+    setAuthStatus('Kakao 인증 페이지로 이동합니다...', true);
+    showBanner('Kakao 로그인', 1.1);
+    const oauthUrl = data?.url || '';
+    if(oauthUrl && /^https?:\/\//i.test(oauthUrl)){
+      try{
+        const probe = await fetch(oauthUrl, { method:'GET', redirect:'manual', headers:{ accept:'application/json' } });
+        if(probe.status >= 400){
+          const rawText = await probe.text();
+          if(/unsupported provider|provider is not enabled/i.test(rawText)){
+            setAuthStatus('Kakao Provider가 Supabase에서 비활성화되어 있습니다. Dashboard > Authentication > Providers > Kakao 를 활성화해 주세요.');
+          } else {
+            setAuthStatus(`Kakao 로그인 준비 실패 (${probe.status}). Supabase OAuth 설정을 확인해 주세요.`);
+          }
+          showBanner('Kakao 로그인 실패', 1.4);
+          return;
+        }
+      } catch(err){}
+      window.location.assign(oauthUrl);
+    } else {
+      setAuthStatus('Kakao 인증 URL 생성에 실패했습니다. Supabase OAuth 설정을 확인해 주세요.');
+      showBanner('Kakao 로그인 실패', 1.4);
+    }
   } catch(err){
     const message = err?.message || String(err);
-    setAuthStatus(`로그인 실패: ${message}`);
-    showBanner('로그인 실패', 1.2);
+    setAuthStatus(`Kakao 로그인 실패: ${message}`);
+    showBanner('Kakao 로그인 실패', 1.3);
+  } finally {
+    if(authLoginBtn) authLoginBtn.disabled = false;
   }
 }
 
@@ -2822,7 +2837,7 @@ async function hydrateSession(){
   updateUserBadge();
   syncSavedLoginInputs(true);
   openMenu('auth');
-  if(ok) setAuthStatus('기존 세션이 있어도 시작 시 로그인 화면부터 표시됩니다. 로그인 버튼을 눌러 진행하세요.', true);
+  if(ok) setAuthStatus('기존 Kakao 세션이 감지되었습니다. 로그인 버튼을 누르면 바로 전장으로 이동합니다.', true);
 }
 
 async function saveSupabaseSettingsFromInputs(){
@@ -2931,8 +2946,6 @@ function syncPageUI(){
   const end = Math.min(list.length, start + PAGE_SIZE);
   pageLabel.textContent = `${state.mode === 'install' ? 'INSTALL' : 'PASSIVE'} ${start+1}-${end} / ${list.length}`;
   [...pageDots.children].forEach((d, i) => d.classList.toggle('active', i === state.page));
-  if(pagePrevBtn) pagePrevBtn.disabled = state.page <= 0;
-  if(pageNextBtn) pageNextBtn.disabled = state.page >= pageCount() - 1;
 }
 
 function drawPreview(cv, item){
@@ -3028,7 +3041,8 @@ function resize(){
     const prevTop = prevField.top || 0;
     const prevHeight = Math.max(1, prevField.height || 1);
     for(const e of state.enemies){
-      e.x = state.field.left + state.field.tileW * (e.col + 0.5);
+      const laneCenter = state.field.left + state.field.tileW * (e.col + 0.5);
+      e.x = laneCenter + (e.laneOffset || 0) + (e.motionX || 0);
       const progress = (e.y - prevTop) / prevHeight;
       e.y = state.field.top + progress * state.field.height;
     }
@@ -3418,7 +3432,10 @@ function resetGame(options={}){
       color:template.color, poison:0, poisonTime:0, slow:1, slowTime:0, ranged:!!template.ranged, spitDamage:(template.spitDamage || 0) * damageScale, spitRange:template.spitRange || 0, spitRate:template.spitRate || 1.2, spitCooldown:0.85,
       deathPoison:template.deathPoison || 0, deathBurst:template.deathBurst || 0, regen:template.regen || 0, phase:template.phase || 0, dodge:template.dodge || 0, split:template.split || 0, baseDamage:(template.baseDamage || 4) * damageScale,
       towerSlowAura:template.towerSlowAura || 0, curseRate:template.curseRate || 0, enragedAt:template.enragedAt || 0, rage:template.rage || false, summonEvery:template.summonEvery || 0, summonTimer:template.summonEvery || 0, chillAura:template.chillAura || false, smash:template.smash || 0,
-      animSeed: Math.random() * Math.PI * 2, walkClock: Math.random() * 2.8, hover: Math.random() * Math.PI * 2,
+      weaveAmp:template.weaveAmp || 0, weaveFreq:template.weaveFreq || 0, driftAmp:template.driftAmp || 0, driftFreq:template.driftFreq || 0, pulseAmp:template.pulseAmp || 0, pulseFreq:template.pulseFreq || 0,
+      dashEvery:template.dashEvery || 0, dashBoost:template.dashBoost || 0, dashTimer:(template.dashEvery || 0) + Math.random() * 0.7, dashBoostTimer:0,
+      laneOffset:(Math.random() - 0.5) * 6, motionX:0, speedPulse:1,
+      animSeed: Math.random() * Math.PI * 2, walkClock: Math.random() * 2.8, hover: Math.random() * Math.PI * 2, motionClock:Math.random() * Math.PI * 2,
     });
   }
 
@@ -3685,7 +3702,7 @@ function getTurretStats(t){
       const template = MONSTERS.find(m => m.family === 'runner') || MONSTERS[0];
       const child = { ...template, baseHp: Math.max(12, template.baseHp - 6), hpInc: template.hpInc, speed: template.speed + 8, speedInc: template.speedInc, reward: Math.max(1, Math.floor(e.reward * 0.25)), size: Math.max(10, e.size * 0.65), color:e.accent || template.color };
       spawnEnemyFromTemplate(child, false);
-      const ne = state.enemies[state.enemies.length - 1]; if(ne){ ne.x = e.x + (i===0?-8:8); ne.y = e.y - 4; ne.col = e.col; }
+      const ne = state.enemies[state.enemies.length - 1]; if(ne){ ne.x = e.x + (i===0?-8:8); ne.y = e.y - 4; ne.col = e.col; ne.laneOffset += (i===0?-8:8); }
     }
   }
 
@@ -3781,6 +3798,23 @@ function onEnemyKilled(e){
       if(e.slowTime > 0){ e.slowTime -= dt; } else { e.slow = 1; }
       enemyRanged(dt, e);
       e.walkClock += dt * Math.max(1.2, e.speed * 0.045);
+      e.motionClock += dt;
+      const laneCenter = state.field.left + state.field.tileW * (e.col + 0.5);
+      const weave = e.weaveAmp ? Math.sin(e.motionClock * Math.max(0.8, e.weaveFreq) + e.animSeed) * e.weaveAmp : 0;
+      const drift = e.driftAmp ? Math.cos(e.motionClock * Math.max(0.6, e.driftFreq) + e.animSeed * 0.6) * e.driftAmp : 0;
+      e.motionX = weave + drift;
+      e.x = laneCenter + (e.laneOffset || 0) + e.motionX;
+      const pulse = e.pulseAmp ? Math.sin(e.motionClock * Math.max(0.8, e.pulseFreq) + e.animSeed * 0.35) * e.pulseAmp : 0;
+      e.speedPulse = 1 + pulse;
+      if(e.dashEvery > 0){
+        e.dashTimer -= dt;
+        if(e.dashTimer <= 0){
+          e.dashBoostTimer = 0.22;
+          e.dashTimer = e.dashEvery * (0.85 + Math.random() * 0.45);
+          state.effects.push({type:'trail', x:e.x, y:e.y, r:Math.max(4, e.size * 0.36), life:0.10, color:e.accent || e.color});
+        }
+      }
+      if(e.dashBoostTimer > 0) e.dashBoostTimer -= dt;
 
       let blocked = false;
       for(const t of state.turrets){
@@ -3793,7 +3827,9 @@ function onEnemyKilled(e){
           }
         }
       }
-      if(!blocked){ e.y += e.speed * (e.slow || 1) * dt; } else { e.walkClock += dt * 1.2; }
+      const dashMul = e.dashBoostTimer > 0 ? (1 + (e.dashBoost || 0.45)) : 1;
+      const moveMul = Math.max(0.74, e.speedPulse || 1) * dashMul;
+      if(!blocked){ e.y += e.speed * (e.slow || 1) * moveMul * dt; } else { e.walkClock += dt * 1.2; }
 
       if(e.hp <= 0){
         onEnemyKilled(e); placeDeathPool(e); if(e.deathBurst) splashDamage(e.x, e.y, 34, e.deathBurst, {}); splitEnemy(e);
@@ -4527,13 +4563,33 @@ function onEnemyKilled(e){
     const armDrag = 0.22 - shamble * 0.16;
     const legLead = 0.22 + shamble * 0.18;
     const legDrag = -0.10 - shamble * 0.14;
+    const motionTilt = Math.max(-0.22, Math.min(0.22, (e.motionX || 0) / Math.max(16, s * 2.6)));
+    const pulse = Math.sin((e.motionClock || 0) * 1.8 + (e.animSeed || 0)) * 0.5 + 0.5;
+    const shade = (hex, amount=0) => {
+      const raw = String(hex || '').trim();
+      const m = raw.match(/^#([0-9a-f]{6})$/i);
+      if(!m) return raw || '#888';
+      const v = parseInt(m[1], 16);
+      const r = (v >> 16) & 255;
+      const g = (v >> 8) & 255;
+      const b = v & 255;
+      const lerp = (ch) => amount >= 0 ? Math.round(ch + (255 - ch) * amount) : Math.round(ch * (1 + amount));
+      return `rgb(${Math.max(0, Math.min(255, lerp(r)))}, ${Math.max(0, Math.min(255, lerp(g)))}, ${Math.max(0, Math.min(255, lerp(b)))})`;
+    };
 
     const limb = (x, y, w, h, rot, color) => {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(rot);
-      ctx.fillStyle = color;
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, shade(color, 0.28));
+      g.addColorStop(0.58, color);
+      g.addColorStop(1, shade(color, -0.34));
+      ctx.fillStyle = g;
       ctx.fillRect(-w/2, 0, w, h);
+      ctx.strokeStyle = 'rgba(8,10,14,.42)';
+      ctx.lineWidth = Math.max(1, w * 0.10);
+      ctx.strokeRect(-w/2, 0, w, h);
       ctx.restore();
     };
     const head = (r, tint=0) => {
@@ -4542,6 +4598,9 @@ function onEnemyKilled(e){
       ctx.rotate(headTilt);
       ctx.fillStyle = e.color;
       ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(8,10,14,.45)';
+      ctx.lineWidth = Math.max(1.2, r * 0.14);
+      ctx.stroke();
       ctx.fillStyle = '#0d0d0d';
       ctx.fillRect(-r*0.55, -r*0.08, Math.max(2, r*0.26), Math.max(2, r*0.22));
       ctx.fillRect(r*0.18, -r*0.04, Math.max(2, r*0.24), Math.max(2, r*0.20));
@@ -4557,8 +4616,15 @@ function onEnemyKilled(e){
     const torsoRect = (w, h) => {
       ctx.save();
       ctx.rotate(torsoTilt);
-      ctx.fillStyle = e.color;
+      const g = ctx.createLinearGradient(0, -s*0.02, 0, h);
+      g.addColorStop(0, shade(e.color, 0.24));
+      g.addColorStop(0.56, e.color);
+      g.addColorStop(1, shade(e.color, -0.30));
+      ctx.fillStyle = g;
       ctx.fillRect(-w/2, -s*0.02, w, h);
+      ctx.strokeStyle = 'rgba(8,10,14,.40)';
+      ctx.lineWidth = Math.max(1, s * 0.05);
+      ctx.strokeRect(-w/2, -s*0.02, w, h);
       ctx.fillStyle = 'rgba(34,18,18,.24)';
       ctx.fillRect(-w*0.24, h*0.20, w*0.14, h*0.22);
       ctx.fillRect(w*0.06, h*0.48, w*0.12, h*0.18);
@@ -4567,8 +4633,41 @@ function onEnemyKilled(e){
 
     ctx.save();
     ctx.translate(e.x + sway, e.y + bob);
+    ctx.rotate(motionTilt * 0.26);
+    if((e.pulseAmp || 0) > 0){
+      const expand = (e.boss ? 0.02 : 0.04) * pulse;
+      ctx.scale(1 + expand, 1 - expand * 0.45);
+    }
+    if((e.weaveAmp || 0) > 8 || (e.driftAmp || 0) > 8){
+      ctx.fillStyle = 'rgba(180,220,255,0.15)';
+      ctx.beginPath();
+      ctx.ellipse(0, s * 0.52, s * 0.36, s * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     switch(e.body){
+      case 'raider_red':
+        limb(-s*0.18, s*0.16, s*0.11, s*0.40, legLead * 1.08, e.color);
+        limb(s*0.16, s*0.16, s*0.11, s*0.38, legDrag * 0.96, e.color);
+        limb(-s*0.30, -s*0.02, s*0.09, s*0.30, armLead * 0.9, e.color);
+        limb(s*0.28, 0.00, s*0.09, s*0.30, armDrag * 0.82, e.color);
+        torsoRect(s*0.46, s*0.52);
+        head(s*0.24, 0.24);
+        ctx.fillStyle = '#ffd0d0';
+        poly(ctx,[[-s*0.16,-s*0.42],[-s*0.04,-s*0.52],[-s*0.02,-s*0.34]]);
+        poly(ctx,[[s*0.16,-s*0.42],[s*0.04,-s*0.52],[s*0.02,-s*0.34]]);
+        break;
+      case 'raider_blue':
+        limb(-s*0.16, s*0.12, s*0.09, s*0.42, legLead * 1.42, e.color);
+        limb(s*0.14, s*0.12, s*0.09, s*0.40, legDrag * 1.30, e.color);
+        limb(-s*0.24, -s*0.07, s*0.08, s*0.24, armLead * 1.24, e.color);
+        limb(s*0.22, -s*0.03, s*0.08, s*0.26, armDrag * 1.16, e.color);
+        ctx.save(); ctx.rotate(torsoTilt - 0.12); torsoRect(s*0.40, s*0.44); ctx.restore();
+        head(s*0.22, 0.2);
+        ctx.fillStyle = '#cde0ff';
+        ctx.fillRect(-s*0.20,-s*0.02,s*0.40,s*0.06);
+        ctx.fillRect(-s*0.08,s*0.10,s*0.16,s*0.05);
+        break;
       case 'walker':
         limb(-s*0.18, s*0.12, s*0.09, s*0.42, legLead, e.color);
         limb(s*0.14, s*0.16, s*0.09, s*0.40, legDrag, e.color);
@@ -4618,6 +4717,41 @@ function onEnemyKilled(e){
         torsoRect(s*0.40, s*0.46);
         head(s*0.22, 0.18);
         ctx.fillStyle = e.accent; ctx.fillRect(s*0.10,-s*0.18,s*0.20,s*0.08);
+        break;
+      case 'stalker':
+        limb(-s*0.16, s*0.14, s*0.09, s*0.36, legLead * 1.2, e.color);
+        limb(s*0.14, s*0.16, s*0.09, s*0.34, legDrag * 1.2, e.color);
+        limb(-s*0.24, -s*0.04, s*0.07, s*0.24, armLead * 1.1, e.color);
+        limb(s*0.24, -s*0.02, s*0.07, s*0.26, armDrag * 1.15, e.color);
+        ctx.save(); ctx.rotate(torsoTilt - 0.06); ctx.fillStyle = e.color; ctx.fillRect(-s*0.18,-s*0.04,s*0.38,s*0.44); ctx.restore();
+        head(s*0.21, 0.22);
+        ctx.fillStyle = e.accent || '#c8f4ff'; ctx.fillRect(-s*0.10,-s*0.28,s*0.20,s*0.06);
+        break;
+      case 'hopper':
+        limb(-s*0.18, s*0.10, s*0.10, s*0.40, legLead * 1.65, e.color);
+        limb(s*0.16, s*0.10, s*0.10, s*0.40, legDrag * 1.55, e.color);
+        limb(-s*0.24, -s*0.06, s*0.07, s*0.20, armLead * 0.75, e.color);
+        limb(s*0.20, -s*0.04, s*0.07, s*0.20, armDrag * 0.72, e.color);
+        ctx.save(); ctx.rotate(torsoTilt - 0.12); ctx.fillStyle = e.color; ctx.fillRect(-s*0.18,-s*0.06,s*0.36,s*0.36); ctx.restore();
+        head(s*0.20, 0.16);
+        ctx.fillStyle = '#fff4d2';
+        ctx.beginPath();
+        ctx.arc(-s*0.07, -s*0.30, s*0.05, 0, Math.PI * 2);
+        ctx.arc(s*0.08, -s*0.30, s*0.05, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      case 'specter':
+        ctx.globalAlpha = 0.78;
+        head(s*0.21, 0.1);
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.moveTo(-s*0.22, -s*0.02);
+        ctx.quadraticCurveTo(-s*0.30, s*0.12, -s*0.14, s*0.40);
+        ctx.quadraticCurveTo(0, s*0.32 + Math.sin(pace * 1.7) * 3.4, s*0.14, s*0.40);
+        ctx.quadraticCurveTo(s*0.30, s*0.12, s*0.22, -s*0.02);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
         break;
       case 'titan':
         limb(-s*0.22, s*0.20, s*0.15, s*0.42, legLead * 0.55, e.color);
@@ -5065,8 +5199,6 @@ function onEnemyKilled(e){
   sellBtn.addEventListener('click', sellSelected);
   modeInstallBtn.addEventListener('click', () => changeMode('install'));
   modePassiveBtn.addEventListener('click', () => changeMode('passive'));
-  if(pagePrevBtn) pagePrevBtn.addEventListener('click', () => scrollToPage(state.page - 1));
-  if(pageNextBtn) pageNextBtn.addEventListener('click', () => scrollToPage(state.page + 1));
   menuBtn.addEventListener('click', () => {
     if(state.menuOpen && state.authFlowUnlocked){
       closeMenu();
@@ -5101,7 +5233,10 @@ function onEnemyKilled(e){
   policyCloseBtn.type = 'button';
   policyRejectBtn.type = 'button';
   policyAgreeBtn.type = 'button';
-  authRegisterOpenBtn.addEventListener('click', () => openRegisterModal(true));
+  authRegisterOpenBtn.addEventListener('click', () => {
+    setAuthStatus('이메일 회원가입은 종료되었습니다. Kakao 로그인 버튼을 이용해 주세요.');
+    showBanner('Kakao 로그인만 지원', 1.4);
+  });
   registerCloseBtn.addEventListener('click', () => closeRegisterModal());
   registerModal.querySelector('.policyBackdrop').addEventListener('click', () => closeRegisterModal(true));
   authLoginBtn.addEventListener('click', ev => { ev.preventDefault(); loginCurrentMode(); });
