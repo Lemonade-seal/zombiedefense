@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-28-05';
+  const BUILD_VERSION = '2026-04-29-02';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -237,6 +237,8 @@
     'Kakao OAuth redirect 경로를 루트 기준으로 고정해 접속 오류 완화',
     'Kakao provider 미활성 상태에서 JSON 오류 페이지로 이동하던 흐름 차단',
     'OAuth URL 사전 점검으로 authorize.json 다운로드 오류 노출 최소화',
+    'Kakao/Supabase 연동용 필수 설정 안내 문구를 로그인 화면에 추가',
+    'OAuth 콜백 쿼리(code/state) 유실 방지를 위한 진입 리다이렉트 보강',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -248,6 +250,7 @@
   const SUPABASE_TABLE = 'game_profiles';
   const SUPABASE_PRESENCE_TABLE = 'game_presence';
   const SUPABASE_CHAT_TABLE = 'game_chat_messages';
+  const KAKAO_CALLBACK_URI = `${String(SUPABASE_BOOT_CONFIG?.url || '').replace(/\/+$/,'')}/auth/v1/callback`;
 
   injectRuntimeUi();
 
@@ -256,6 +259,7 @@
   const rankToggleBtn = document.getElementById('rankToggleBtn');
   const onlineUsersBtn = document.getElementById('onlineUsersBtn');
   const chatToggleBtn = document.getElementById('chatToggleBtn');
+  const kakaoRedirectUriHint = document.getElementById('kakaoRedirectUriHint');
   const leaderboardPanel = document.getElementById('leaderboardPanel');
   const presencePanel = document.getElementById('presencePanel');
   const chatPanel = document.getElementById('chatPanel');
@@ -268,6 +272,7 @@
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
   const chatSendBtn = document.getElementById('chatSendBtn');
+  if(kakaoRedirectUriHint && KAKAO_CALLBACK_URI.startsWith('https://')) kakaoRedirectUriHint.textContent = KAKAO_CALLBACK_URI;
   const appOnlineStatus = document.getElementById('appOnlineStatus');
   const patchNotesSummary = document.getElementById('patchNotesSummary');
   const installDragBadge = document.getElementById('installDragBadge');
@@ -1207,6 +1212,15 @@ function injectRuntimeUi(){
             <div class="authSummary">
               Kakao 로그인 버튼을 누르면 인증 화면으로 이동합니다.
               인증이 끝나면 자동으로 이 화면으로 돌아오며, 다시 로그인 버튼을 누르면 바로 전장으로 이동합니다.
+            </div>
+          </div>
+          <div class="authBox">
+            <div class="authBoxTitle">KAKAO 설정 체크리스트</div>
+            <div class="authSummary">
+              1) Kakao Developers &gt; 내 애플리케이션 &gt; 앱 키의 <strong>기존 REST API 키</strong>를 Supabase Kakao Provider에 입력<br />
+              2) Redirect URI: <code id="kakaoRedirectUriHint">https://YOUR-PROJECT.supabase.co/auth/v1/callback</code><br />
+              3) 동의항목에서 <strong>account_email, profile_image</strong> 사용 설정<br />
+              4) Provider 비활성화 시 로그인 대신 오류 화면이 뜹니다.
             </div>
           </div>
         </div>
@@ -2520,7 +2534,7 @@ async function loginOnlineUser(){
     if(error){
       const raw = String(error.message || '');
       if(/unsupported provider|provider is not enabled/i.test(raw)){
-        setAuthStatus('Kakao 로그인이 아직 Supabase에서 활성화되지 않았습니다. Dashboard > Authentication > Providers > Kakao 를 켜주세요.');
+        setAuthStatus(`Kakao 로그인이 아직 Supabase에서 활성화되지 않았습니다. Supabase Kakao Provider를 켜고 Kakao 앱의 기존 REST API 키/Client Secret, Redirect URI(${KAKAO_CALLBACK_URI})를 확인해 주세요.`);
       } else {
         setAuthStatus(`Kakao 로그인 실패: ${raw}`);
       }
@@ -2538,7 +2552,7 @@ async function loginOnlineUser(){
         if(probe.status >= 400){
           const rawText = await probe.text();
           if(/unsupported provider|provider is not enabled/i.test(rawText)){
-            setAuthStatus('Kakao Provider가 Supabase에서 비활성화되어 있습니다. Dashboard > Authentication > Providers > Kakao 를 활성화해 주세요.');
+            setAuthStatus(`Kakao Provider가 Supabase에서 비활성화되어 있습니다. Supabase Kakao Provider와 Redirect URI(${KAKAO_CALLBACK_URI})를 먼저 설정해 주세요.`);
           } else {
             setAuthStatus(`Kakao 로그인 준비 실패 (${probe.status}). Supabase OAuth 설정을 확인해 주세요.`);
           }
