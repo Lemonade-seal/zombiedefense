@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-29-02';
+  const BUILD_VERSION = '2026-04-29-03';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -239,6 +239,7 @@
     'OAuth URL 사전 점검으로 authorize.json 다운로드 오류 노출 최소화',
     'Kakao/Supabase 연동용 필수 설정 안내 문구를 로그인 화면에 추가',
     'OAuth 콜백 쿼리(code/state) 유실 방지를 위한 진입 리다이렉트 보강',
+    'Kakao OAuth 시작 방식을 기본 리다이렉트로 단순화해 로그인 중단 이슈 완화',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -2527,9 +2528,9 @@ async function loginOnlineUser(){
   }
   try{
     const redirectTo = `${window.location.origin}/`;
-    const { data, error } = await state.supabase.auth.signInWithOAuth({
+    const { error } = await state.supabase.auth.signInWithOAuth({
       provider: 'kakao',
-      options: { redirectTo, queryParams: { prompt: 'select_account' }, skipBrowserRedirect: true },
+      options: { redirectTo },
     });
     if(error){
       const raw = String(error.message || '');
@@ -2545,26 +2546,7 @@ async function loginOnlineUser(){
     clearSavedLoginCredentials();
     setAuthStatus('Kakao 인증 페이지로 이동합니다...', true);
     showBanner('Kakao 로그인', 1.1);
-    const oauthUrl = data?.url || '';
-    if(oauthUrl && /^https?:\/\//i.test(oauthUrl)){
-      try{
-        const probe = await fetch(oauthUrl, { method:'GET', redirect:'manual', headers:{ accept:'application/json' } });
-        if(probe.status >= 400){
-          const rawText = await probe.text();
-          if(/unsupported provider|provider is not enabled/i.test(rawText)){
-            setAuthStatus(`Kakao Provider가 Supabase에서 비활성화되어 있습니다. Supabase Kakao Provider와 Redirect URI(${KAKAO_CALLBACK_URI})를 먼저 설정해 주세요.`);
-          } else {
-            setAuthStatus(`Kakao 로그인 준비 실패 (${probe.status}). Supabase OAuth 설정을 확인해 주세요.`);
-          }
-          showBanner('Kakao 로그인 실패', 1.4);
-          return;
-        }
-      } catch(err){}
-      window.location.assign(oauthUrl);
-    } else {
-      setAuthStatus('Kakao 인증 URL 생성에 실패했습니다. Supabase OAuth 설정을 확인해 주세요.');
-      showBanner('Kakao 로그인 실패', 1.4);
-    }
+    return;
   } catch(err){
     const message = err?.message || String(err);
     setAuthStatus(`Kakao 로그인 실패: ${message}`);
