@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-29-06';
+  const BUILD_VERSION = '2026-04-29-07';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -243,6 +243,7 @@
     'OAuth code 콜백을 명시 교환하는 세션 복원 경로 추가',
     'Supabase Site URL 형식 오류(site uri improperly formatted) 대응 안내 추가',
     '로그인 화면 단순화 및 최신 패치 자동 팝업 적용',
+    '카카오 로그인 완료 후 닉네임 설정 단계를 추가',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -2464,7 +2465,38 @@ async function applyOnlineUser(user, preferredName='', preferredRecoveryEmail=''
   state.profileCache = defaultProfileForUser(state.currentUser);
   updateUserBadge();
   await fetchOnlineProfile(true);
+  await ensureKakaoNickname();
   startOnlineLoops();
+}
+
+async function ensureKakaoNickname(){
+  if(!state.currentUser) return;
+  const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
+  const currentName = normalizeUsername(profile?.name || state.currentUser?.name || '');
+  if(currentName && currentName !== 'PLAYER') return;
+  for(let attempt=0; attempt<3; attempt++){
+    const input = window.prompt('카카오 로그인 완료! 사용할 닉네임(2~16자)을 입력해 주세요.');
+    if(input == null) return;
+    const name = normalizeUsername(input);
+    if(!isValidDisplayName(name)){
+      setAuthStatus('닉네임은 2~16자, 공백 없이 입력해 주세요.');
+      continue;
+    }
+    state.currentUser.name = name;
+    const next = ensureProfileShape({
+      ...profile,
+      name,
+      loginId: profile?.loginId || state.currentUser.loginId || '',
+      recoveryEmail: profile?.recoveryEmail || state.currentUser.recoveryEmail || '',
+    }, name);
+    state.profileCache = next;
+    persistProfile(next);
+    updateUserBadge();
+    await pushProfileToSupabase(next, currentOnlineContext(), true);
+    setAuthStatus(`닉네임이 ${name} 으로 설정되었습니다.`, true);
+    showBanner(`닉네임 설정: ${name}`, 1.2);
+    return;
+  }
 }
 
 async function validateRegisterForm(){
