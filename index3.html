@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-29-05';
+  const BUILD_VERSION = '2026-04-29-06';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -242,6 +242,7 @@
     'Kakao OAuth 시작 방식을 기본 리다이렉트로 단순화해 로그인 중단 이슈 완화',
     'OAuth code 콜백을 명시 교환하는 세션 복원 경로 추가',
     'Supabase Site URL 형식 오류(site uri improperly formatted) 대응 안내 추가',
+    '로그인 화면 단순화 및 최신 패치 자동 팝업 적용',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -1173,8 +1174,8 @@ function injectRuntimeUi(){
       <div class="menuHeader">
         <div>
           <div id="menuEyebrow" class="menuEyebrow">LOGIN · ONLINE ACCOUNT</div>
-          <h1 id="menuTitle">좀비 막기게임 로그인</h1>
-          <p id="menuSubtitle" class="menuSubtitle">로그인 전에는 로그인과 회원가입만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.</p>
+          <h1 id="menuTitle">좀비 막기게임</h1>
+          <p id="menuSubtitle" class="menuSubtitle">카카오 로그인 후 전장 화면으로 바로 이동합니다.</p>
         </div>
         <button id="menuCloseBtn" class="small">닫기</button>
       </div>
@@ -1182,49 +1183,9 @@ function injectRuntimeUi(){
       <div id="authView" class="menuView">
         <div class="authStack">
           <div class="authBox">
-            <div class="authBoxTitle">패치노트</div>
-            <div class="authSummary" id="patchNotesSummary"></div>
-          </div>
-
-          <div class="authBox">
             <div class="authBoxTitle">Kakao 로그인</div>
-            <div class="authSummary">
-              이메일/비밀번호 회원가입은 종료되었습니다.<br />
-              <strong>Kakao 계정으로 바로 로그인</strong>해 게임을 시작하세요.
-            </div>
-            <label class="menuField" style="display:none">이메일 주소
-              <input id="loginIdInput" type="email" maxlength="120" placeholder="가입한 이메일 주소 입력" autocomplete="email" autocapitalize="off" spellcheck="false" />
-              <div class="fieldRule">Supabase 로그인용 이메일 주소</div>
-            </label>
-            <label class="menuField" style="display:none">비밀번호
-              <input id="loginPassInput" type="password" maxlength="72" placeholder="비밀번호 입력" autocomplete="current-password" />
-            </label>
-            <div class="authChecks">
-              <div class="menuCheck compact">
-                <label><input id="autoLoginCheck" type="checkbox" /> <span>자동로그인 사용</span></label>
-              </div>
-            </div>
             <div class="authButtons">
-              <button id="authLoginBtn" class="primary">Kakao로 시작</button>
-              <button id="authRegisterOpenBtn" disabled>이메일 가입 종료</button>
-            </div>
-          </div>
-
-          <div class="authBox">
-            <div class="authBoxTitle">진행 방법 설명</div>
-            <div class="authSummary">
-              Kakao 로그인 버튼을 누르면 인증 화면으로 이동합니다.
-              인증이 끝나면 자동으로 이 화면으로 돌아오며, 다시 로그인 버튼을 누르면 바로 전장으로 이동합니다.
-            </div>
-          </div>
-          <div class="authBox">
-            <div class="authBoxTitle">KAKAO 설정 체크리스트</div>
-            <div class="authSummary">
-              1) Kakao Developers &gt; 내 애플리케이션 &gt; 앱 키의 <strong>기존 REST API 키</strong>를 Supabase Kakao Provider에 입력<br />
-              2) Redirect URI: <code id="kakaoRedirectUriHint">https://YOUR-PROJECT.supabase.co/auth/v1/callback</code><br />
-              3) 동의항목에서 <strong>account_email, profile_image</strong> 사용 설정<br />
-              4) Supabase Auth &gt; URL Configuration의 Site URL은 <strong>https://도메인</strong> 형식으로 저장<br />
-              5) Provider 비활성화 또는 Site URL 오타 시 JSON 오류 화면이 뜹니다.
+              <button id="authLoginBtn" class="primary">카카오로그인으로 시작</button>
             </div>
           </div>
         </div>
@@ -1848,6 +1809,19 @@ function renderPatchNotes(){
   `;
 }
 
+function showPatchNotesPopupOnce(){
+  const key = `zdf_patch_popup_seen_${BUILD_VERSION}`;
+  try{
+    if(localStorage.getItem(key)) return;
+  } catch(err){}
+  const latest = Array.isArray(PATCH_NOTES) ? PATCH_NOTES[PATCH_NOTES.length - 1] : '';
+  const text = `최신 패치: ${latest || '-'}\nBUILD DATE: ${BUILD_VERSION}`;
+  window.setTimeout(() => {
+    try{ window.alert(text); } catch(err){}
+  }, 120);
+  try{ localStorage.setItem(key, '1'); } catch(err){}
+}
+
 let onlineTickerStartTimer = 0;
 function clearOnlineTopTickerTimers(){
   if(onlineTickerStartTimer){
@@ -2457,9 +2431,9 @@ function renderMenu(view='auto'){
   homeView.hidden = forceAuth;
   if(forceAuth){
     if(menuEyebrow) menuEyebrow.textContent = 'LOGIN · ONLINE ACCOUNT';
-    menuTitle.textContent = '좀비 막기게임 Kakao 로그인';
-    menuSubtitle.textContent = '로그인 전에는 Kakao 인증 화면만 표시됩니다. 로그인 성공 후 전장 화면으로 바로 이동합니다.';
-    authNotice.textContent = '이메일 가입은 종료되었습니다. Kakao 로그인으로만 계정을 연결합니다. 자동로그인을 체크하면 다음 접속부터 저장된 세션으로 바로 전장 화면에 들어갈 수 있습니다.';
+    menuTitle.textContent = '좀비 막기게임';
+    menuSubtitle.textContent = '카카오로그인으로 시작 버튼을 누르면 인증 후 전장으로 이동합니다.';
+    authNotice.textContent = '이메일 가입은 종료되었습니다. 카카오 로그인만 지원합니다.';
     return;
   }
   const profile = getCurrentProfile() || defaultProfileForUser(state.currentUser);
@@ -5247,14 +5221,14 @@ function onEnemyKilled(e){
   leaderboardRefreshBtn.addEventListener('click', () => { void refreshLeaderboard(); });
   presenceRefreshBtn.addEventListener('click', () => { void refreshPresence(); });
   authLoginBtn.type = 'button';
-  authRegisterOpenBtn.type = 'button';
+  if(authRegisterOpenBtn) authRegisterOpenBtn.type = 'button';
   authRegisterBtn.type = 'button';
   registerCloseBtn.type = 'button';
   authPolicyViewBtn.type = 'button';
   policyCloseBtn.type = 'button';
   policyRejectBtn.type = 'button';
   policyAgreeBtn.type = 'button';
-  authRegisterOpenBtn.addEventListener('click', () => {
+  if(authRegisterOpenBtn) authRegisterOpenBtn.addEventListener('click', () => {
     setAuthStatus('이메일 회원가입은 종료되었습니다. Kakao 로그인 버튼을 이용해 주세요.');
     showBanner('Kakao 로그인만 지원', 1.4);
   });
@@ -5262,8 +5236,8 @@ function onEnemyKilled(e){
   registerModal.querySelector('.policyBackdrop').addEventListener('click', () => closeRegisterModal(true));
   authLoginBtn.addEventListener('click', ev => { ev.preventDefault(); loginCurrentMode(); });
   authRegisterBtn.onclick = ev => { ev.preventDefault(); registerCurrentMode(); };
-  loginPassInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
-  loginIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
+  if(loginPassInput) loginPassInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
+  if(loginIdInput) loginIdInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') loginCurrentMode(); });
   registerNameInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
   if(registerEmailInput) registerEmailInput.addEventListener('keydown', ev => { if(ev.key === 'Enter') registerCurrentMode(); });
   registerPassInput.addEventListener('input', updatePasswordMatchState);
@@ -5291,6 +5265,7 @@ function onEnemyKilled(e){
     resize();
     syncAutoLoginCheckbox();
   renderPatchNotes();
+  showPatchNotesPopupOnce();
     if(autoLoginCheck){
       autoLoginCheck.addEventListener('change', () => {
         const enabled = !!autoLoginCheck.checked;
