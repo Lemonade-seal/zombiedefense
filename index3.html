@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-29-04';
+  const BUILD_VERSION = '2026-04-29-05';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -241,6 +241,7 @@
     'OAuth 콜백 쿼리(code/state) 유실 방지를 위한 진입 리다이렉트 보강',
     'Kakao OAuth 시작 방식을 기본 리다이렉트로 단순화해 로그인 중단 이슈 완화',
     'OAuth code 콜백을 명시 교환하는 세션 복원 경로 추가',
+    'Supabase Site URL 형식 오류(site uri improperly formatted) 대응 안내 추가',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -1222,7 +1223,8 @@ function injectRuntimeUi(){
               1) Kakao Developers &gt; 내 애플리케이션 &gt; 앱 키의 <strong>기존 REST API 키</strong>를 Supabase Kakao Provider에 입력<br />
               2) Redirect URI: <code id="kakaoRedirectUriHint">https://YOUR-PROJECT.supabase.co/auth/v1/callback</code><br />
               3) 동의항목에서 <strong>account_email, profile_image</strong> 사용 설정<br />
-              4) Provider 비활성화 시 로그인 대신 오류 화면이 뜹니다.
+              4) Supabase Auth &gt; URL Configuration의 Site URL은 <strong>https://도메인</strong> 형식으로 저장<br />
+              5) Provider 비활성화 또는 Site URL 오타 시 JSON 오류 화면이 뜹니다.
             </div>
           </div>
         </div>
@@ -2537,6 +2539,8 @@ async function loginOnlineUser(){
       const raw = String(error.message || '');
       if(/unsupported provider|provider is not enabled/i.test(raw)){
         setAuthStatus(`Kakao 로그인이 아직 Supabase에서 활성화되지 않았습니다. Supabase Kakao Provider를 켜고 Kakao 앱의 기존 REST API 키/Client Secret, Redirect URI(${KAKAO_CALLBACK_URI})를 확인해 주세요.`);
+      } else if(/site uri is improperly formatted/i.test(raw)){
+        setAuthStatus('Supabase Auth URL Configuration의 Site URL 형식이 잘못되었습니다. 예: https://your-domain.com (공백/잘못된 스킴 금지)');
       } else {
         setAuthStatus(`Kakao 로그인 실패: ${raw}`);
       }
