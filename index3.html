@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-29-08';
+  const BUILD_VERSION = '2026-04-29-09';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -246,6 +246,7 @@
     '카카오 로그인 완료 후 닉네임 설정 단계를 추가',
     '닉네임 설정을 게임 내 팝업 화면으로 변경',
     'Supabase 계정 삭제 후 재로그인 시 재가입 흐름 보강',
+    '카카오 인증 화면 진입을 위해 OAuth URL 직접 이동 방식 보강',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -2631,9 +2632,9 @@ async function loginOnlineUser(){
   }
   try{
     const redirectTo = `${window.location.origin}/`;
-    const { error } = await state.supabase.auth.signInWithOAuth({
+    const { data, error } = await state.supabase.auth.signInWithOAuth({
       provider: 'kakao',
-      options: { redirectTo },
+      options: { redirectTo, skipBrowserRedirect: true },
     });
     if(error){
       const raw = String(error.message || '');
@@ -2651,6 +2652,13 @@ async function loginOnlineUser(){
     clearSavedLoginCredentials();
     setAuthStatus('Kakao 인증 페이지로 이동합니다...', true);
     showBanner('Kakao 로그인', 1.1);
+    const oauthUrl = String(data?.url || '');
+    if(!oauthUrl){
+      setAuthStatus('카카오 인증 URL을 받지 못했습니다. Supabase/Kakao 설정을 다시 확인해 주세요.');
+      showBanner('Kakao 로그인 실패', 1.4);
+      return;
+    }
+    window.location.assign(oauthUrl);
     return;
   } catch(err){
     const message = err?.message || String(err);
