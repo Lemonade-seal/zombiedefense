@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-29-03';
+  const BUILD_VERSION = '2026-04-29-04';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -240,6 +240,7 @@
     'Kakao/Supabase 연동용 필수 설정 안내 문구를 로그인 화면에 추가',
     'OAuth 콜백 쿼리(code/state) 유실 방지를 위한 진입 리다이렉트 보강',
     'Kakao OAuth 시작 방식을 기본 리다이렉트로 단순화해 로그인 중단 이슈 완화',
+    'OAuth code 콜백을 명시 교환하는 세션 복원 경로 추가',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -2815,6 +2816,26 @@ function beginNewGame(){
 
 async function hydrateOnlineSession(){
   if(!initSupabaseClient()) return false;
+  try{
+    const params = new URLSearchParams(window.location.search || '');
+    const code = String(params.get('code') || '').trim();
+    if(code){
+      const exchanged = await state.supabase.auth.exchangeCodeForSession(code);
+      if(exchanged?.error){
+        setSupabaseStatus(`OAuth 코드 교환 실패: ${exchanged.error.message}`);
+      } else {
+        params.delete('code');
+        params.delete('state');
+        params.delete('scope');
+        params.delete('authuser');
+        params.delete('prompt');
+        const clean = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash || ''}`;
+        window.history.replaceState({}, document.title, clean);
+      }
+    }
+  } catch(err){
+    setSupabaseStatus(`OAuth 처리 중 오류: ${err?.message || err}`);
+  }
   const { data, error } = await state.supabase.auth.getSession();
   if(error){
     setSupabaseStatus(`세션 확인 실패: ${error.message}`);
