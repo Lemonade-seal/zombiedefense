@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-30-14';
+  const BUILD_VERSION = '2026-04-30-15';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -251,6 +251,7 @@
     '로그인 상태 초기화 버튼을 회원탈퇴 버튼으로 대체',
     'GitHub Pages 경로형 배포를 위해 OAuth redirectTo를 현재 경로 기준으로 보정',
     '모바일/인앱 브라우저에서 Kakao 인증 화면이 열리지 않던 문제를 기본 OAuth 리다이렉트 방식으로 수정',
+    'OAuth 복귀 후 세션이 있으면 로그인 버튼 재클릭 없이 자동으로 전장 화면 진입하도록 수정',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -2992,12 +2993,18 @@ async function hydrateOnlineSession(){
 
 async function hydrateSession(){
   const ok = await hydrateOnlineSession();
-  state.authFlowUnlocked = false;
+  state.authFlowUnlocked = !!ok;
   updateAuthGate();
   updateUserBadge();
   syncSavedLoginInputs(true);
+  if(ok){
+    setAuthStatus('기존 Kakao 세션으로 자동 로그인되었습니다. 전장 화면으로 이동합니다.', true);
+    openMenu('home');
+    closeMenu();
+    showBanner('자동 로그인 완료', 1.2);
+    return;
+  }
   openMenu('auth');
-  if(ok) setAuthStatus('기존 Kakao 세션이 감지되었습니다. 로그인 버튼을 누르면 바로 전장으로 이동합니다.', true);
 }
 
 async function saveSupabaseSettingsFromInputs(){
