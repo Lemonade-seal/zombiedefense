@@ -220,7 +220,7 @@
   const AUTO_LOGIN_PREF_KEY = 'zdf_auto_login_pref_v1';
   const AUTO_LOGIN_CREDENTIALS_KEY = 'zdf_auto_login_credentials_v1';
   const BUILD_VERSION_KEY = 'zdf_build_version_v1';
-  const BUILD_VERSION = '2026-04-30-13';
+  const BUILD_VERSION = '2026-04-30-14';
   const PATCH_NOTES = [
     'ONLINE 긴 닉네임이 실제로 천천히 이동하도록 동작 보강',
     '패치노트 박스 내용을 현재 빌드 기준으로 자동 갱신되게 수정',
@@ -250,6 +250,7 @@
     '로그인 잠금 해제 전 Supabase 사용자/프로필 유효성 재검증 단계 추가',
     '로그인 상태 초기화 버튼을 회원탈퇴 버튼으로 대체',
     'GitHub Pages 경로형 배포를 위해 OAuth redirectTo를 현재 경로 기준으로 보정',
+    '모바일/인앱 브라우저에서 Kakao 인증 화면이 열리지 않던 문제를 기본 OAuth 리다이렉트 방식으로 수정',
   ];
   const LOGIN_EMAIL_MAP_KEY = 'zdf_login_email_map_v1';
   const SUPABASE_BOOT_CONFIG = Object.freeze({
@@ -2644,9 +2645,9 @@ async function loginOnlineUser(){
   }
   try{
     const redirectTo = `${window.location.origin}${window.location.pathname || '/'}`;
-    const { data, error } = await state.supabase.auth.signInWithOAuth({
+    const { error } = await state.supabase.auth.signInWithOAuth({
       provider: 'kakao',
-      options: { redirectTo, skipBrowserRedirect: true },
+      options: { redirectTo },
     });
     if(error){
       const raw = String(error.message || '');
@@ -2664,13 +2665,6 @@ async function loginOnlineUser(){
     clearSavedLoginCredentials();
     setAuthStatus('Kakao 인증 페이지로 이동합니다...', true);
     showBanner('Kakao 로그인', 1.1);
-    const oauthUrl = String(data?.url || '');
-    if(!oauthUrl){
-      setAuthStatus('카카오 인증 URL을 받지 못했습니다. Supabase/Kakao 설정을 다시 확인해 주세요.');
-      showBanner('Kakao 로그인 실패', 1.4);
-      return;
-    }
-    window.location.assign(oauthUrl);
     return;
   } catch(err){
     const message = err?.message || String(err);
